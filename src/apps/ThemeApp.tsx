@@ -9,6 +9,24 @@ interface ThemeAppProps {
 
 export const ThemeApp: React.FC<ThemeAppProps> = ({ onBack, desktopBg, onUpdateDesktopBg }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fullscreenMode, setFullscreenMode] = React.useState(false);
+
+  React.useEffect(() => {
+    const savedFullscreen = localStorage.getItem('desktop_fullscreen_mode') === 'true';
+    setFullscreenMode(savedFullscreen);
+  }, []);
+
+  const handleFullscreenToggle = () => {
+    const newMode = !fullscreenMode;
+    setFullscreenMode(newMode);
+    localStorage.setItem('desktop_fullscreen_mode', newMode.toString());
+    // Apply/remove fullscreen class immediately
+    if (newMode) {
+      document.documentElement.classList.add('fullscreen-mode');
+    } else {
+      document.documentElement.classList.remove('fullscreen-mode');
+    }
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -70,6 +88,29 @@ export const ThemeApp: React.FC<ThemeAppProps> = ({ onBack, desktopBg, onUpdateD
             />
           </div>
         </div>
+
+        <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 flex flex-col overflow-hidden">
+          <div className="bg-gray-50 px-5 py-4 border-b border-gray-100">
+            <h2 className="text-[18px] font-bold text-gray-800">屏幕适配</h2>
+          </div>
+
+          <div className="px-5 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col">
+                <span className="text-[15px] font-medium text-gray-800">顶部全屏</span>
+                <span className="text-[12px] text-gray-400 mt-0.5">内容延伸至屏幕顶部边缘</span>
+              </div>
+              <button 
+                onClick={handleFullscreenToggle}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${fullscreenMode ? 'bg-[#ffcce0]' : 'bg-gray-200'}`}
+              >
+                <span className="sr-only">Toggle fullscreen</span>
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out shadow ${fullscreenMode ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );

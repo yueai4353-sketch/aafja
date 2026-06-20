@@ -327,6 +327,16 @@ export default function App() {
     }
   };
 
+  // Apply fullscreen mode class on mount based on saved setting
+  React.useEffect(() => {
+    const isFullscreen = localStorage.getItem('desktop_fullscreen_mode') === 'true';
+    if (isFullscreen) {
+      document.documentElement.classList.add('fullscreen-mode');
+    } else {
+      document.documentElement.classList.remove('fullscreen-mode');
+    }
+  }, []);
+
   const [editModal, setEditModal] = useState<{isOpen: boolean, title: string, value: string, setterKey: string, setter: (v: string) => void} | null>(null);
 
   const openTextEdit = (title: string, current: string, key: string, setter: (v: string) => void) => {
