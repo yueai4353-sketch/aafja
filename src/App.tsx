@@ -448,24 +448,57 @@ export default function App() {
     try {
       const prompt = (context as any).prompt;
       
-      const apiUrl = localStorage.getItem('os_api_url') || '';
-      const apiKey = localStorage.getItem('os_api_key') || '';
-      const model = localStorage.getItem('os_api_model') || '';
+      const apiUrl = (localStorage.getItem('os_api_url') || '').trim();
+      const apiKey = (localStorage.getItem('os_api_key') || '').trim();
+      const model = (localStorage.getItem('os_api_model') || '').trim();
       const tempStr = localStorage.getItem('os_api_temp');
       const temperature = tempStr !== null ? parseFloat(tempStr) : 0.7;
 
-      const response = await fetch('/api/chat', {
+      if (!apiUrl || !apiKey || !model) {
+        showGlobalToast('请先在设置中配置 API 地址、密钥和模型');
+        return;
+      }
+
+      // 直接从浏览器调用 OpenAI 兼容 API（兼容静态部署和 Safari）
+      let completionsUrl = apiUrl;
+      if (!completionsUrl.endsWith('/chat/completions')) {
+        completionsUrl = completionsUrl.endsWith('/') ? `${completionsUrl}chat/completions` : `${completionsUrl}/chat/completions`;
+      }
+
+      // Safari 对 fetch URL 校验严格，确保 URL 合法
+      let validatedUrl: string;
+      try {
+        validatedUrl = new URL(completionsUrl).toString();
+      } catch (_e) {
+        showGlobalToast('API 地址格式不正确，请检查设置');
+        return;
+      }
+
+      const response = await fetch(validatedUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          prompt,
-          apiUrl,
-          apiKey,
-          model,
-          temperature
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: temperature
         })
       });
-      const data = await response.json();
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`API 请求失败: ${response.status} ${errText.substring(0, 200)}`);
+      }
+
+      const rawData = await response.json();
+      let data: { text?: string; error?: string };
+      if (rawData.choices && rawData.choices.length > 0 && rawData.choices[0].message) {
+        data = { text: rawData.choices[0].message.content };
+      } else {
+        data = { error: 'API 返回格式异常' };
+      }
       
       if (data.text) {
         let msgsToSave = [data.text];

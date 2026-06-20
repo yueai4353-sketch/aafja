@@ -117,7 +117,14 @@ export const SettingsApp = ({ onBack, key }: { onBack: () => void, key?: React.K
       
       const endpoint = baseUrl.endsWith('/') ? `${baseUrl}models` : `${baseUrl}/models`;
       
-      const response = await fetch(endpoint, {
+      let validatedEndpoint: string;
+      try {
+        validatedEndpoint = new URL(endpoint).toString();
+      } catch (_e) {
+        throw new Error('API 地址格式不正确，请检查是否包含 https://');
+      }
+      
+      const response = await fetch(validatedEndpoint, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
