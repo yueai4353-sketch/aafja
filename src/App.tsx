@@ -9,7 +9,7 @@ import { CreatePersonaApp as CreatePersonaScreen } from './apps/CreatePersonaApp
 import { WorldbookApp as WorldbookScreen } from './apps/WorldbookApp';
 import { ThemeApp as ThemeScreen } from './apps/ThemeApp';
 import { buildFullAIContext } from './utils/aiContext';
-import { BackgroundLines, IconWechat, IconCalendar, IconWeather, IconHuaji, IconWorldbook, IconDevice, IconCompanion, IconSettings, IconTheme, AppIcon, CurrentTime, SortableAppIcon, IconAccounting, IconSecret, IconMessage, IconPeriod } from './components';
+import { BackgroundLines, IconWechat, IconCalendar, IconWeather, IconHuaji, IconWorldbook, IconDevice, IconCompanion, IconSettings, IconTheme, AppIcon, CurrentTime, SortableAppIcon, IconAccounting, IconSecret, IconMessage, IconPeriod, IconCangxu } from './components';
 import {
   DndContext,
   closestCenter,
@@ -63,6 +63,22 @@ import {
   Send,
   X
 } from 'lucide-react';
+
+// 一次性清理所有桌面存储中的忆册(jice)图标
+(function cleanJice() {
+  ['os_desktop_apps_v3', 'os_desktop_apps_p2_v3', 'os_desktop_apps', 'os_desktop_apps_p2'].forEach(key => {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      try {
+        const arr = JSON.parse(raw);
+        const filtered = arr.filter((a: any) => a.iconKey !== 'jice');
+        if (filtered.length !== arr.length) {
+          localStorage.setItem(key, JSON.stringify(filtered));
+        }
+      } catch (e) {}
+    }
+  });
+})();
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook'>('home');
@@ -209,12 +225,8 @@ export default function App() {
 
   const [desktopApps, setDesktopApps] = useState(() => {
     const saved = localStorage.getItem('os_desktop_apps_v3');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [
+    const defaultApps = [
+      { id: '10', iconKey: 'cangxu', label: '藏叙', screen: null },
       { id: '1', iconKey: 'weather', label: '天气', screen: null },
       { id: '2', iconKey: 'calendar', label: '日历', screen: null },
       { id: '3', iconKey: 'wechat', label: '微信', screen: 'wechat' },
@@ -224,13 +236,26 @@ export default function App() {
       { id: '7', iconKey: 'accounting', label: '记账', screen: null },
       { id: '9', iconKey: 'period', label: '经期记录', screen: null },
     ];
+    if (saved) {
+      try {
+        let parsed = JSON.parse(saved);
+        // 过滤掉已删除的 jice 图标
+        parsed = parsed.filter((a: any) => a.iconKey !== 'jice');
+        if (!parsed.find((a: any) => a.iconKey === 'cangxu')) {
+          parsed.unshift({ id: '10', iconKey: 'cangxu', label: '藏叙', screen: null });
+        }
+        return parsed;
+      } catch (e) {}
+    }
+    return defaultApps;
   });
 
   const [desktopAppsPage2, setDesktopAppsPage2] = useState(() => {
     const saved = localStorage.getItem('os_desktop_apps_p2_v3');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return parsed.filter((a: any) => a.iconKey !== 'jice');
       } catch (e) {}
     }
     return [
@@ -302,6 +327,7 @@ export default function App() {
     accounting: <IconAccounting />,
     secret: <IconSecret />,
     period: <IconPeriod />,
+    cangxu: <IconCangxu />,
   };
 
   const handleAppClick = (screen: any) => {

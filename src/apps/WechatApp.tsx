@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Moon, Signal, Wifi, Battery, ChevronLeft, ChevronRight, User, MoreHorizontal, Plus, Heart, Send, MessageSquare, Phone, Disc, RefreshCcw, Layout, UserPlus, Users, Tag, Search, Camera, Snowflake, Edit2, CreditCard, X, Globe, Folder, Copy, Trash2, LayoutGrid, CornerUpLeft, ChevronsUpDown, Check, MapPin, ArrowRightLeft, Gift } from 'lucide-react';
+import { Moon, Signal, Wifi, Battery, ChevronLeft, ChevronRight, User, MoreHorizontal, Plus, Heart, Send, MessageSquare, Phone, Disc, RefreshCcw, Layout, UserPlus, Users, Tag, Search, Camera, Snowflake, Edit2, CreditCard, X, Globe, Folder, Copy, Trash2, LayoutGrid, CornerUpLeft, ChevronsUpDown, Check, MapPin, ArrowRightLeft, Gift, Image as ImageIcon } from 'lucide-react';
 import { CurrentTime, ToggleSwitch, useCurrentTime } from '../components';
 import { AppDB } from '../db';
 
@@ -951,6 +951,9 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
   const [showPluginPanel, setShowPluginPanel] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showRedPacketModal, setShowRedPacketModal] = useState(false);
+  const [showImageDescModal, setShowImageDescModal] = useState(false);
+  const [imageDesc, setImageDesc] = useState('');
+  const [viewingImageDesc, setViewingImageDesc] = useState<string | null>(null);
   const [moneyAmount, setMoneyAmount] = useState('');
   const [moneyTitle, setMoneyTitle] = useState('');
   const [quotedMessage, setQuotedMessage] = useState<any | null>(null);
@@ -1298,7 +1301,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
             let parts: any[] = [];
             if (msg.msgType === 'narrator') {
                 parts = [{ type: 'narrator', text: cleanText }];
-            } else if (cleanText.startsWith('[红包]') || cleanText.startsWith('[TRANSFER:')) {
+            } else if (cleanText.startsWith('[红包]') || cleanText.startsWith('[TRANSFER:') || cleanText.match(/^\[image:.*\]$/)) {
                 parts = [{ type: 'special', text: cleanText }];
             } else {
                 const hasDialogue = cleanText.includes('「') && cleanText.includes('」');
@@ -1409,9 +1412,25 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                         const text = group.parts[0].text;
                         const isRedPacket = text.startsWith('[红包] ');
                         const isTransfer = text.startsWith('[TRANSFER:');
+                        const isImage = text.match(/^\[image:(.*)\]$/);
                         
                         let content = null;
-                        if (isRedPacket) {
+                        if (isImage) {
+                          const desc = isImage[1];
+                          content = (
+                            <div 
+                              className={`w-[180px] h-[180px] rounded-[10px] overflow-hidden select-none bg-[#e8e8e8] flex items-center justify-center ${isMultiSelecting ? '' : 'cursor-pointer active:brightness-95'}`}
+                              onClick={() => { if (!isMultiSelecting) setViewingImageDesc(desc); }}
+                              onPointerDown={() => { if (!isMultiSelecting) startLongPress(msg); }}
+                              onPointerUp={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                              onPointerLeave={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                              onPointerCancel={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                              onContextMenu={(e: any) => { e.preventDefault(); if (!isMultiSelecting) cancelLongPress(); }}
+                            >
+                              <ImageIcon size={48} className="text-gray-400" strokeWidth={1.2} />
+                            </div>
+                          );
+                        } else if (isRedPacket) {
                           const title = text.slice(5) || '大吉大利，万事如意';
                           content = (
                             <div 
@@ -1645,16 +1664,30 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                          <span className="text-[12px] text-gray-500 font-medium">红包</span>
                       </button>
                       <button 
-                         onClick={() => {
-                           setShowPluginPanel(false);
-                           document.getElementById('wechat-camera-input')?.click();
-                         }}
-                         className="flex flex-col items-center gap-2"
+                        onClick={() => {
+                          setShowPluginPanel(false);
+                          setImageDesc('');
+                          setShowImageDescModal(true);
+                        }}
+                        className="flex flex-col items-center gap-1.5"
                       >
-                         <div className="w-14 h-14 bg-[#f4f5f7] rounded-[16px] flex items-center justify-center active:bg-gray-200 transition-colors">
-                           <Camera className="text-[#64748b]" size={26} strokeWidth={1.5} />
-                         </div>
-                         <span className="text-[12px] text-gray-500 font-medium">照片</span>
+                        <div className="w-14 h-14 bg-[#f4f5f7] rounded-[16px] flex items-center justify-center active:bg-gray-200 transition-colors">
+                          <ImageIcon className="text-[#64748b]" size={26} strokeWidth={1.5} />
+                        </div>
+                        <span className="text-[12px] text-gray-500 font-medium">相册</span>
+                      </button>
+
+                      <button 
+                        onClick={() => {
+                          onSendMessage('[拍照]', 'system');
+                          setShowPluginPanel(false);
+                        }}
+                        className="flex flex-col items-center gap-1.5"
+                      >
+                        <div className="w-14 h-14 bg-[#f4f5f7] rounded-[16px] flex items-center justify-center active:bg-gray-200 transition-colors">
+                          <Camera className="text-[#64748b]" size={26} strokeWidth={1.5} />
+                        </div>
+                        <span className="text-[12px] text-gray-500 font-medium">拍照</span>
                       </button>
                       <button 
                          onClick={() => {
@@ -2302,6 +2335,35 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
               >
                 接收
               </button>
+            </div>
+          </motion.div>
+        </>
+      )}
+
+      {viewingImageDesc !== null && (
+        <>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setViewingImageDesc(null)} className="fixed inset-0 bg-black/40 z-[100]" />
+          <motion.div initial={{ opacity: 0, scale: 0.95, y: -20, x: '-50%' }} animate={{ opacity: 1, scale: 1, y: '-50%', x: '-50%' }} exit={{ opacity: 0, scale: 0.95, y: -20, x: '-50%' }} className="fixed top-1/2 left-1/2 w-[75%] bg-white rounded-[12px] z-[110] flex flex-col overflow-hidden">
+            <div className="py-4 text-center text-[17px] font-medium text-gray-900 border-b border-gray-200">图片描述</div>
+            <div className="px-5 py-4 text-center text-[16px] text-gray-700 min-h-[60px] flex items-center justify-center">{viewingImageDesc}</div>
+            <div className="border-t border-gray-200">
+              <button onClick={() => setViewingImageDesc(null)} className="w-full py-3 text-[16px] font-medium text-[#576B95] active:bg-gray-50 transition-colors">确定</button>
+            </div>
+          </motion.div>
+        </>
+      )}
+
+      {showImageDescModal && (
+        <>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowImageDescModal(false)} className="fixed inset-0 bg-black/40 z-[100]" />
+          <motion.div initial={{ opacity: 0, scale: 0.95, y: -20, x: '-50%' }} animate={{ opacity: 1, scale: 1, y: '-50%', x: '-50%' }} exit={{ opacity: 0, scale: 0.95, y: -20, x: '-50%' }} className="fixed top-1/2 left-1/2 w-[80%] bg-white rounded-[12px] z-[110] flex flex-col overflow-hidden">
+            <div className="p-5 pb-4">
+              <div className="text-[17px] font-medium text-gray-900 mb-4">发送图片</div>
+              <input type="text" value={imageDesc} onChange={e => setImageDesc(e.target.value)} placeholder="请输入图片描述" className="w-full h-10 px-0 border-b border-[#07C160] text-[16px] focus:outline-none focus:border-[#07C160] transition-colors" autoFocus />
+            </div>
+            <div className="flex border-t border-gray-100">
+              <button onClick={() => setShowImageDescModal(false)} className="flex-1 py-3 text-[16px] font-medium text-gray-900 active:bg-gray-50 transition-colors border-r border-gray-100">取消</button>
+              <button onClick={() => { if (imageDesc.trim()) { onSendMessage(`[image:${imageDesc.trim()}]`); } setShowImageDescModal(false); }} className="flex-1 py-3 text-[16px] font-medium text-[#576B95] active:bg-gray-50 transition-colors">确定</button>
             </div>
           </motion.div>
         </>
