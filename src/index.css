@@ -1,20 +1,38 @@
 @import "tailwindcss";
 
 @layer base {
-  html, body, #root {
+  html, body {
+    width: 100vw;
+    height: 100dvh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: pan-x pan-y;
+    box-sizing: border-box;
+  }
+
+  body {
+    /* 默认背景与 App 默认渐变一致，避免 safe-area 区域留白 */
+    background: linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%);
+  }
+
+  #root {
     width: 100vw;
     height: 100dvh;
     overflow: hidden;
     overscroll-behavior: none;
     touch-action: pan-x pan-y;
     box-sizing: border-box;
+    /* 仅在 #root 上应用 safe-area 内边距，避免三层叠加 */
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
 
-  html.fullscreen-mode, html.fullscreen-mode body, html.fullscreen-mode #root {
+  /* 顶部全屏模式：移除顶部安全区内边距，内容延伸至屏幕最顶端 */
+  html.fullscreen-mode #root {
     padding-top: 0 !important;
   }
 }

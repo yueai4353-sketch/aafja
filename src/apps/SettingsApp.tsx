@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
-import { Moon, Signal, Wifi, Battery, ChevronLeft, Plus, Globe } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Moon, Signal, Wifi, Battery, ChevronLeft, Plus, Globe, ChevronDown, ChevronUp } from 'lucide-react';
 import { CurrentTime } from '../components';
 
 const API_PRESETS = [
@@ -12,7 +12,7 @@ const API_PRESETS = [
   { id: 'deepseek', name: 'DeepSeek', url: 'https://api.deepseek.com/v1' }
 ];
 
-export const SettingsApp = ({ onBack, key }: { onBack: () => void, key?: React.Key }) => {
+export const SettingsApp = ({ onBack, desktopBg, key }: { onBack: () => void, desktopBg?: string | null, key?: React.Key }) => {
   const [preset, setPreset] = useState('');
   const [apiUrl, setApiUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -26,6 +26,16 @@ export const SettingsApp = ({ onBack, key }: { onBack: () => void, key?: React.K
   const [customPresets, setCustomPresets] = useState<{id: string, name: string, url: string}[]>([]);
   const [showPresetModal, setShowPresetModal] = useState(false);
   const [presetName, setPresetName] = useState('');
+
+  // Memory API configuration states
+  const [memoryApiUrl, setMemoryApiUrl] = useState('');
+  const [memoryApiKey, setMemoryApiKey] = useState('');
+  const [memoryModels, setMemoryModels] = useState<{id: string, name: string}[]>([]);
+  const [memorySelectedModel, setMemorySelectedModel] = useState('');
+  const [isTestingMemory, setIsTestingMemory] = useState(false);
+
+  // Card expanded states
+  const [expandedCard, setExpandedCard] = useState<'main' | 'memory' | ''>('');
 
   React.useEffect(() => {
     const savedUrl = localStorage.getItem('os_api_url') || '';
@@ -50,6 +60,18 @@ export const SettingsApp = ({ onBack, key }: { onBack: () => void, key?: React.K
     if (savedModel) {
       setSelectedModel(savedModel);
       setModels([{ id: savedModel, name: savedModel }]);
+    }
+
+    // Load Memory API configuration
+    const savedMemoryUrl = localStorage.getItem('os_memory_api_url') || '';
+    const savedMemoryKey = localStorage.getItem('os_memory_api_key') || '';
+    const savedMemoryModel = localStorage.getItem('os_memory_api_model') || '';
+    
+    if (savedMemoryUrl) setMemoryApiUrl(savedMemoryUrl);
+    if (savedMemoryKey) setMemoryApiKey(savedMemoryKey);
+    if (savedMemoryModel) {
+      setMemorySelectedModel(savedMemoryModel);
+      setMemoryModels([{ id: savedMemoryModel, name: savedMemoryModel }]);
     }
   }, []);
 
@@ -95,6 +117,12 @@ export const SettingsApp = ({ onBack, key }: { onBack: () => void, key?: React.K
     localStorage.setItem('os_api_model', selectedModel);
     localStorage.setItem('os_api_context_mem', contextMemSize.toString());
     localStorage.setItem('os_api_mandatory_mem', mandatoryMemSize.toString());
+    
+    // Save Memory API configuration
+    localStorage.setItem('os_memory_api_url', memoryApiUrl);
+    localStorage.setItem('os_memory_api_key', memoryApiKey);
+    localStorage.setItem('os_memory_api_model', memorySelectedModel);
+    
     showToast('配置已保存');
   };
 
@@ -159,14 +187,91 @@ export const SettingsApp = ({ onBack, key }: { onBack: () => void, key?: React.K
     }
   };
 
+  const handleTestMemory = async () => {
+    if (!memoryApiUrl) {
+      showToast('记忆API地址不能为空');
+      return;
+    }
+    if (!memoryApiKey) {
+      showToast('记忆API密钥不能为空');
+      return;
+    }
+    setIsTestingMemory(true);
+    
+    try {
+      let baseUrl = memoryApiUrl;
+      if (baseUrl.endsWith('/chat/completions')) {
+        baseUrl = baseUrl.replace('/chat/completions', '');
+      }
+      
+      const endpoint = baseUrl.endsWith('/') ? `${baseUrl}models` : `${baseUrl}/models`;
+      
+      let validatedEndpoint: string;
+      try {
+        validatedEndpoint = new URL(endpoint).toString();
+      } catch (_e) {
+        throw new Error('API 地址格式不正确，请检查是否包含 https://');
+      }
+      
+      const response = await fetch(validatedEndpoint, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${memoryApiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP Error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data && data.data && Array.isArray(data.data)) {
+        const fetchedModels = data.data.map((m: any) => ({
+          id: m.id,
+          name: m.id
+        }));
+        setMemoryModels(fetchedModels);
+        if (fetchedModels.length > 0) {
+          setMemorySelectedModel(fetchedModels[0].id);
+        }
+        showToast('记忆API连接测试成功，已加载模型');
+      } else {
+        throw new Error('API 返回格式不支持');
+      }
+    } catch (error: any) {
+      console.error(error);
+      showToast(`记忆API连接失败: ${error.message}`);
+    } finally {
+      setIsTestingMemory(false);
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, scale: 0.96, y: 15 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96, y: 15 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="absolute inset-0 bg-white z-[60] flex flex-col pt-4"
+      className="absolute inset-0 z-[60] flex flex-col pt-4 overflow-hidden"
     >
+      {/* Dynamic Background matching Desktop with 10% Blur */}
+      {desktopBg ? (
+        <>
+          <div 
+            className="absolute inset-0 z-[-2] scale-110" 
+            style={{ 
+              background: `url(${desktopBg}) center/cover no-repeat`,
+              filter: 'blur(10px) brightness(0.9)'
+            }}
+          />
+          <div className="absolute inset-0 z-[-1] bg-white/40" />
+        </>
+      ) : (
+        <div className="absolute inset-0 z-[-1] bg-[#eef2f9]" />
+      )}
+      
       {/* Toast Notification */}
       {toast && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-gray-800/90 backdrop-blur text-white px-5 py-2.5 rounded-full text-[13px] font-medium shadow-lg z-[60] transition-opacity duration-300">
@@ -209,7 +314,7 @@ export const SettingsApp = ({ onBack, key }: { onBack: () => void, key?: React.K
       )}
 
       {/* Settings Status Bar */}
-      <div className="flex justify-between items-center px-7 text-[13px] font-medium text-gray-800 shrink-0">
+      <div className="flex justify-between items-center px-7 text-[13px] font-medium text-gray-800 shrink-0 relative z-10">
         <div className="flex items-center">
           <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
         </div>
@@ -221,27 +326,63 @@ export const SettingsApp = ({ onBack, key }: { onBack: () => void, key?: React.K
       </div>
 
       {/* Settings Header */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 shrink-0 mt-2">
-        <button onClick={onBack} className="p-2 -ml-2 text-gray-800 active:bg-gray-100 rounded-full transition-colors">
-          <ChevronLeft size={24} strokeWidth={2} />
+      <div className="flex items-center justify-between px-4 py-4 shrink-0 mt-2 relative z-10">
+        <div className="flex items-center">
+          <button onClick={onBack} className="w-10 h-10 flex items-center justify-center bg-white rounded-full text-gray-800 shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-95 transition-transform">
+            <ChevronLeft size={20} strokeWidth={2.5} className="mr-0.5" />
+          </button>
+        </div>
+        <button className="px-5 py-2 bg-white/90 backdrop-blur-md rounded-full text-[14px] font-medium text-blue-500 shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-95 transition-transform">
+          保存
         </button>
-        <span className="text-[17px] font-medium text-gray-800 absolute left-1/2 -translate-x-1/2">设置</span>
-        <div className="w-10"></div> {/* Spacer for centering */}
+      </div>
+
+      {/* Title */}
+      <div className="px-6 py-2 shrink-0 relative z-10">
+        <h1 className="text-[32px] font-bold text-gray-800 tracking-tight">API 设置</h1>
       </div>
 
       {/* Settings Content */}
-      <div className="flex-1 overflow-y-auto no-scrollbar bg-[#FAFAFA] p-4">
-        <div className="bg-white rounded-[24px] overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.02)] border border-gray-100/50 pb-6">
-          {/* Section Header */}
-          <div className="bg-gray-50/80 px-5 py-4 border-b border-gray-100/50">
-            <h2 className="text-[15px] font-medium text-gray-800 tracking-wide">AI模型配置</h2>
+      <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-10 relative z-10">
+        {/* Main API Configuration Card */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-[28px] overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.04)] border border-white/50 mb-6 transition-all duration-300">
+          <div 
+            className="px-5 py-5 flex items-center justify-between cursor-pointer active:bg-white/50 transition-colors"
+            onClick={() => setExpandedCard(expandedCard === 'main' ? '' as any : 'main')}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+                <Globe size={20} className="text-blue-500" />
+              </div>
+              <div>
+                <h3 className="text-[16px] font-medium text-gray-800">主API配置</h3>
+                <p className="text-[12px] text-gray-400 mt-0.5">基础大模型与预设管理</p>
+              </div>
+            </div>
+            {expandedCard === 'main' ? (
+              <ChevronUp size={20} className="text-gray-400" />
+            ) : (
+              <ChevronDown size={20} className="text-gray-400" />
+            )}
           </div>
-
-          <div className="px-5 pt-6 flex flex-col gap-6">
+          
+          <AnimatePresence>
+            {expandedCard === 'main' && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="overflow-hidden"
+              >
+                <div className="px-5 pb-6 pt-2 flex flex-col gap-6 border-t border-gray-100/50">
             {/* Presets Box */}
-            <div className="bg-gray-50/50 rounded-[16px] p-4 border border-gray-100">
-              <div className="flex justify-between items-center mb-4">
-                <label className="text-[14px] font-medium text-gray-800">配置预设</label>
+            <div className="relative border-b border-gray-100/50 pb-6">
+              <div className="flex justify-between items-center mb-4 px-1">
+                <label className="text-[14px] font-medium text-gray-400 tracking-widest">主API预设管理</label>
+              </div>
+              <div className="flex justify-between items-center mb-4 px-1">
+                <label className="text-[15px] font-medium text-gray-200">配置预设</label>
                 <button 
                   onClick={() => setShowPresetModal(true)}
                   className="flex items-center gap-1 bg-[#FFF0F5] text-gray-700 border border-[#fce4ec] px-3 py-1.5 rounded-lg text-[13px] font-normal active:opacity-80 transition-opacity"
@@ -267,14 +408,22 @@ export const SettingsApp = ({ onBack, key }: { onBack: () => void, key?: React.K
                 </div>
                 <button 
                   onClick={() => showToast('预设管理开发中')}
-                  className="bg-white border border-gray-200 rounded-xl px-4 text-[14px] text-gray-700 active:bg-gray-50 transition-colors whitespace-nowrap font-light"
+                  className="bg-white/90 border border-gray-100 shadow-sm rounded-xl px-4 text-[14px] text-gray-500 active:bg-gray-50 transition-colors whitespace-nowrap font-medium"
                 >
                   管理
                 </button>
               </div>
-              <p className="text-[12px] text-gray-400 mt-3 text-center font-light leading-relaxed">
+              <p className="text-[12px] text-gray-400 mt-4 text-center font-medium leading-relaxed">
                 选择预设会填充下方配置，需点击「保存配置」才生效
               </p>
+              <div className="flex items-center justify-center gap-2 mt-4 text-[#8ea8f7] opacity-60">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                <span className="text-[13px] font-medium">保存为新预设</span>
+              </div>
+            </div>
+
+            <div className="mb-[-10px] mt-2 px-1">
+               <label className="text-[14px] font-medium text-gray-400 tracking-widest uppercase">API Setting</label>
             </div>
 
             {/* API URL */}
@@ -406,7 +555,127 @@ export const SettingsApp = ({ onBack, key }: { onBack: () => void, key?: React.K
               </button>
             </div>
 
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Memory API Configuration Card */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-[28px] overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.04)] border border-white/50 mb-6 transition-all duration-300">
+          <div 
+            className="px-5 py-5 flex items-center justify-between cursor-pointer active:bg-white/50 transition-colors"
+            onClick={() => setExpandedCard(expandedCard === 'memory' ? '' as any : 'memory')}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-pink-50 flex items-center justify-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-pink-500"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"/><path d="M12 7v5l3 3"/></svg>
+              </div>
+              <div>
+                <h3 className="text-[16px] font-medium text-gray-800">记忆API配置</h3>
+                <p className="text-[12px] text-gray-400 mt-0.5">专用于「记忆」app的配置</p>
+              </div>
+            </div>
+            {expandedCard === 'memory' ? (
+              <ChevronUp size={20} className="text-gray-400" />
+            ) : (
+              <ChevronDown size={20} className="text-gray-400" />
+            )}
           </div>
+
+          <AnimatePresence>
+            {expandedCard === 'memory' && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="overflow-hidden"
+              >
+                <div className="px-5 pb-6 pt-2 flex flex-col gap-6 border-t border-gray-100/50">
+                  <div className="mb-[-10px] px-1">
+                    <p className="text-[12px] text-gray-400 mt-2 font-light leading-relaxed">
+                      若未配置，将自动使用主API配置
+                    </p>
+                  </div>
+
+            {/* Memory API URL */}
+            <div>
+              <label className="block text-[14px] font-medium text-gray-800 mb-2.5">记忆API地址</label>
+              <input 
+                type="text" 
+                value={memoryApiUrl}
+                onChange={(e) => setMemoryApiUrl(e.target.value)}
+                placeholder="留空则使用主API地址" 
+                className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-[14px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FFF0F5]/80 focus:border-[#fce4ec] transition-all font-light"
+              />
+            </div>
+
+            {/* Memory API Key */}
+            <div>
+              <label className="block text-[14px] font-medium text-gray-800 mb-2.5">记忆API密钥</label>
+              <input 
+                type="password" 
+                value={memoryApiKey}
+                onChange={(e) => setMemoryApiKey(e.target.value)}
+                placeholder="留空则使用主API密钥" 
+                className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-[14px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FFF0F5]/80 focus:border-[#fce4ec] transition-all font-light"
+              />
+            </div>
+
+            {/* Memory Model Selection */}
+            <div>
+              <label className="block text-[14px] font-medium text-gray-800 mb-2.5">记忆模型</label>
+              <div className="relative">
+                <select 
+                  value={memorySelectedModel}
+                  onChange={(e) => setMemorySelectedModel(e.target.value)}
+                  disabled={memoryModels.length === 0}
+                  className="w-full appearance-none bg-white border border-gray-200 rounded-xl px-4 py-3 text-[14px] text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#FFF0F5]/80 focus:border-[#fce4ec] transition-all font-light disabled:bg-gray-50 disabled:text-gray-400"
+                >
+                  {memoryModels.length === 0 ? (
+                    <option value="">-- 请先测试连接以加载模型 --</option>
+                  ) : (
+                    memoryModels.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))
+                  )}
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+                </div>
+              </div>
+              <p className="text-[12px] text-gray-400 mt-2 text-center font-light leading-relaxed">
+                留空则使用主API模型
+              </p>
+            </div>
+
+            {/* Memory API Action Buttons */}
+            <div className="flex gap-3 mt-2">
+              <button 
+                onClick={handleTestMemory}
+                disabled={isTestingMemory || !memoryApiUrl || !memoryApiKey}
+                className="flex items-center justify-center gap-1.5 flex-1 bg-white border border-[#fce4ec] text-gray-700 py-3.5 rounded-xl text-[14px] font-medium active:bg-[#FFF0F5] transition-colors disabled:opacity-50"
+              >
+                {isTestingMemory ? (
+                  <span className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></span>
+                ) : (
+                  <Globe size={16} strokeWidth={2} className="text-gray-500" /> 
+                )}
+                {isTestingMemory ? '测试中...' : '测试连接'}
+              </button>
+              <button 
+                onClick={handleSave}
+                className="flex-1 bg-[#F5F5F5] text-gray-800 py-3.5 rounded-xl text-[14px] font-medium active:bg-gray-200 transition-colors"
+              >
+                保存配置
+              </button>
+            </div>
+
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </motion.div>

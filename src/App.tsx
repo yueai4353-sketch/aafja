@@ -9,7 +9,7 @@ import { CreatePersonaApp as CreatePersonaScreen } from './apps/CreatePersonaApp
 import { WorldbookApp as WorldbookScreen } from './apps/WorldbookApp';
 import { ThemeApp as ThemeScreen } from './apps/ThemeApp';
 import { buildFullAIContext } from './utils/aiContext';
-import { BackgroundLines, IconWechat, IconCalendar, IconWeather, IconHuaji, IconWorldbook, IconDevice, IconCompanion, IconSettings, IconTheme, AppIcon, CurrentTime, SortableAppIcon, IconAccounting, IconSecret, IconMessage, IconPeriod, IconCangxu } from './components';
+import { BackgroundLines, IconWechat, IconCalendar, IconWeather, IconHuaji, IconWorldbook, IconDevice, IconCompanion, IconSettings, IconTheme, AppIcon, CurrentTime, SortableAppIcon, IconAccounting, IconSecret, IconMessage, IconPeriod, IconCangxu, IconMemories } from './components';
 import {
   DndContext,
   closestCenter,
@@ -80,8 +80,10 @@ import {
   });
 })();
 
+import { MemoryApp as MemoryScreen } from './apps/MemoryApp';
+
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook'>('home');
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook' | 'theme' | 'memory'>('home');
   const [myProfile, setMyProfile] = useState<any>(() => {
     const defaultProfile = {
       name: "江明礼",
@@ -225,8 +227,9 @@ export default function App() {
 
   const [desktopApps, setDesktopApps] = useState(() => {
     const saved = localStorage.getItem('os_desktop_apps_v3');
-    const defaultApps = [
-      { id: '10', iconKey: 'cangxu', label: '藏叙', screen: null },
+      const defaultApps = [
+        { id: '11', iconKey: 'memories', label: '记忆', screen: 'memory' },
+        { id: '10', iconKey: 'cangxu', label: '藏叙', screen: null },
       { id: '1', iconKey: 'weather', label: '天气', screen: null },
       { id: '2', iconKey: 'calendar', label: '日历', screen: null },
       { id: '3', iconKey: 'wechat', label: '微信', screen: 'wechat' },
@@ -328,6 +331,7 @@ export default function App() {
     secret: <IconSecret />,
     period: <IconPeriod />,
     cangxu: <IconCangxu />,
+    memories: <IconMemories />,
   };
 
   const handleAppClick = (screen: any) => {
@@ -362,6 +366,16 @@ export default function App() {
       document.documentElement.classList.remove('fullscreen-mode');
     }
   }, []);
+
+  // Sync body background with desktop wallpaper so safe-area inset region
+  // shows the same background instead of a white gap (Safari)
+  React.useEffect(() => {
+    if (desktopBg) {
+      document.body.style.background = `url(${desktopBg}) center/cover no-repeat`;
+    } else {
+      document.body.style.background = 'linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%)';
+    }
+  }, [desktopBg]);
 
   const [editModal, setEditModal] = useState<{isOpen: boolean, title: string, value: string, setterKey: string, setter: (v: string) => void} | null>(null);
 
@@ -577,9 +591,89 @@ export default function App() {
            }
         }
 
+        // 辅助函数：将一条消息分解为旁白和气泡片段
+        const splitNarratorAndBubble = (text: string) => {
+            const segments: Array<{ type: 'narrator' | 'bubble', text: string }> = [];
+            let currentIdx = 0;
+            
+            // 检查是否包含对话标记
+            const hasDialogue = text.includes('「') && text.includes('」');
+            
+            if (!hasDialogue) {
+                // 没有对话标记，整条都是旁白，按段落拆分
+                const paragraphs = text.split(/\n+/).map(p => p.trim()).filter(p => p.length > 0);
+                for (const para of paragraphs) {
+                    segments.push({ type: 'narrator', text: para });
+                }
+            } else {
+                // 有对话标记，需要分离旁白和气泡
+                while (currentIdx < text.length) {
+                    const startQuote = text.indexOf('「', currentIdx);
+                    
+                    if (startQuote === -1) {
+                        // 没有更多引号了，剩余部分是旁白
+                        const narratorText = text.substring(currentIdx).trim();
+                        if (narratorText) {
+                            segments.push({ type: 'narrator', text: narratorText });
+                        }
+                        break;
+                    }
+                    
+                    // startQuote 之前的是旁白
+                    if (startQuote > currentIdx) {
+                        const narratorText = text.substring(currentIdx, startQuote).trim();
+                        if (narratorText) {
+                            segments.push({ type: 'narrator', text: narratorText });
+                        }
+                    }
+                    
+                    // 找到结束引号
+                    const endQuote = text.indexOf('」', startQuote + 1);
+                    if (endQuote === -1) {
+                        // 没有结束引号，剩余部分作为旁白
+                        const narratorText = text.substring(startQuote).trim();
+                        if (narratorText) {
+                            segments.push({ type: 'narrator', text: narratorText });
+                        }
+                        break;
+                    }
+                    
+                    // 提取气泡内容（包含引号）
+                    const bubbleText = text.substring(startQuote, endQuote + 1);
+                    segments.push({ type: 'bubble', text: bubbleText });
+                    
+                    currentIdx = endQuote + 1;
+                }
+            }
+            
+            return segments;
+        };
+
         const currentTs = Date.now();
+        const allMessagesToAdd: any[] = [];
+        
+        // 判断本次回复是否来自 V2 JSON 解析成功（线上模式）
+        // V2 JSON 模式下，reply 中的消息就是气泡消息，不需要再走旁白分离逻辑
+        // 只有线下模式（JSON 解析失败、使用「」文本）才需要 splitNarratorAndBubble
+        let isV2JsonMode = false;
+        if (useV2) {
+            try {
+                let testStr = data.text!.trim();
+                if (testStr.startsWith("```json")) testStr = testStr.substring(7);
+                else if (testStr.startsWith("```")) testStr = testStr.substring(3);
+                if (testStr.endsWith("```")) testStr = testStr.substring(0, testStr.length - 3);
+                testStr = testStr.trim();
+                const testParsed = JSON.parse(testStr);
+                if (testParsed && typeof testParsed.reply === 'string') {
+                    isV2JsonMode = true;
+                }
+            } catch (e) {
+                isV2JsonMode = false;
+            }
+        }
+        
         for (let i = 0; i < msgsToSave.length; i++) {
-            const rtext = msgsToSave[i];
+            let rtext = msgsToSave[i];
             
             if (rtext.includes('[ACTION:ACCEPT_TRANSACTION]') || rtext.includes('[ACTION:REJECT_TRANSACTION]')) {
                 const isAccept = rtext.includes('[ACTION:ACCEPT_TRANSACTION]');
@@ -620,22 +714,11 @@ export default function App() {
                             } catch (err) { }
                         }
                         
-                        const ts = currentTs + i * 1000 + 500;
                         const rtext2 = isAccept ? '对方接受了您的转账' : '对方拒绝了你的转账';
-                        const newId = await ChatDB.messages.add({
-                            contactId: friendId,
-                            fullTimestamp: ts,
+                        allMessagesToAdd.push({
                             text: rtext2,
-                            isMe: false,
-                            msgType: 'narrator'
-                        });
-                        setWechatChats(prev => {
-                            const existing = prev[friendId] || [];
-                            const stateMsg: any = { id: newId as number, text: rtext2, isMe: false, timestamp: ts, msgType: 'narrator' };
-                            return {
-                                ...prev,
-                                [friendId]: [...existing, stateMsg]
-                            }
+                            msgType: 'narrator',
+                            mindCard: null
                         });
                     }
                 } catch (e) {
@@ -648,35 +731,88 @@ export default function App() {
                 if (!cleanText) {
                     continue;
                 }
-                msgsToSave[i] = cleanText; // Let the rest of the loop process the clean text
+                rtext = cleanText; // Let the rest of the loop process the clean text
             }
 
-            const ts = currentTs + i * 1000;
             const isLast = i === msgsToSave.length - 1;
             
-            if (i > 0) {
-               // Simulate typing time between messages
-               const typingTime = Math.max(1000, Math.min(3000, rtext.length * 100));
-               await new Promise(resolve => setTimeout(resolve, typingTime));
+            // 检查是否是特殊消息（转账、红包等）
+            const isSpecialMsg = rtext.startsWith('[红包]') || rtext.startsWith('[TRANSFER:') || rtext.match(/^\[image:.*\]$/);
+            
+            if (isSpecialMsg) {
+                allMessagesToAdd.push({
+                    text: rtext,
+                    msgType: 'text',
+                    mindCard: null
+                });
+            } else if (isV2JsonMode) {
+                // V2 线上 JSON 模式：reply 里的内容就是气泡消息，直接作为 text 类型
+                // 不需要经过 splitNarratorAndBubble（那是给线下「」文本用的）
+                allMessagesToAdd.push({
+                    text: rtext,
+                    msgType: 'text',
+                    mindCard: null
+                });
+            } else {
+                // 线下模式或非V2模式：分离旁白和气泡
+                const segments = splitNarratorAndBubble(rtext);
+                
+                for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+                    const segment = segments[segIdx];
+                    allMessagesToAdd.push({
+                        text: segment.text,
+                        msgType: segment.type === 'narrator' ? 'narrator' : 'text',
+                        mindCard: null
+                    });
+                }
             }
-
+        }
+        
+        // 将心声卡片绑定到最后一条气泡消息上
+        if (mindCardData) {
+            for (let idx = allMessagesToAdd.length - 1; idx >= 0; idx--) {
+                if (allMessagesToAdd[idx].msgType === 'text') {
+                    allMessagesToAdd[idx].mindCard = mindCardData;
+                    break;
+                }
+            }
+        }
+        
+        // 一次性批量添加所有消息到数据库和状态，使用延迟间隔显示
+        for (let idx = 0; idx < allMessagesToAdd.length; idx++) {
+            const msg = allMessagesToAdd[idx];
+            const isFirst = idx === 0;
+            
+            // 第一条消息立即显示，后续消息有间隔（1.5-2.5秒随机）
+            if (!isFirst) {
+                const delay = 1500 + Math.random() * 1000; // 1.5-2.5秒随机延迟
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+            
             try {
+                const ts = currentTs + idx;
                 const msgObj: any = {
                     contactId: friendId,
                     fullTimestamp: ts,
-                    text: rtext,
+                    text: msg.text,
                     isMe: false,
-                    msgType: 'text'
+                    msgType: msg.msgType
                 };
-                if (isLast && mindCardData) {
-                    msgObj.mindCard = mindCardData;
+                if (msg.mindCard) {
+                    msgObj.mindCard = msg.mindCard;
                 }
                 const newId = await ChatDB.messages.add(msgObj);
                 
                 setWechatChats(prev => {
                     const existing = prev[friendId] || [];
-                    const stateMsg: any = { id: newId as number, text: rtext, isMe: false, timestamp: ts, msgType: 'text' };
-                    if (isLast && mindCardData) stateMsg.mindCard = mindCardData;
+                    const stateMsg: any = { 
+                        id: newId as number, 
+                        text: msg.text, 
+                        isMe: false, 
+                        timestamp: ts, 
+                        msgType: msg.msgType 
+                    };
+                    if (msg.mindCard) stateMsg.mindCard = msg.mindCard;
                     return { 
                         ...prev, 
                         [friendId]: [...existing, stateMsg] 
@@ -810,7 +946,7 @@ export default function App() {
         
         <AnimatePresence>
           {currentScreen === 'settings' && (
-            <SettingsApp key="settings" onBack={() => setCurrentScreen('home')} />
+            <SettingsApp key="settings" onBack={() => setCurrentScreen('home')} desktopBg={desktopBg} />
           )}
           {currentScreen === 'wechat' && (
             <WechatScreen 
@@ -947,6 +1083,13 @@ export default function App() {
               onBack={() => setCurrentScreen('home')} 
               desktopBg={desktopBg} 
               onUpdateDesktopBg={setDesktopBg} 
+            />
+          )}
+          {currentScreen === 'memory' && (
+            <MemoryScreen 
+              key="memory"
+              onBack={() => setCurrentScreen('home')}
+              personas={personas}
             />
           )}
         </AnimatePresence>

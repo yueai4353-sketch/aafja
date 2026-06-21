@@ -961,6 +961,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
   const [showMindCardSetting, setShowMindCardSetting] = useState(false);
   const [viewingMindCard, setViewingMindCard] = useState<any | null>(null);
   const [transferActionMsg, setTransferActionMsg] = useState<any | null>(null);
+  const chatAreaRef = useRef<HTMLDivElement>(null);
 
   const [bubbleFontSize, setBubbleFontSize] = useState(15);
   const [bubbleColor, setBubbleColor] = useState('');
@@ -1094,6 +1095,13 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
   };
 
   const displayFriendName = friend.wechat_remark || friend.name;
+
+  // 自动滚动到底部
+  useEffect(() => {
+    if (chatAreaRef.current) {
+      chatAreaRef.current.scrollTop = chatAreaRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   return (
     <>
@@ -1233,7 +1241,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
       )}
 
       {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-4 no-scrollbar">
+      <div ref={chatAreaRef} className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-4 no-scrollbar">
         {messages.length === 0 && (
           <div className="text-center mt-2">
              <span className="text-[12px] text-gray-400"><CurrentTime /></span>
@@ -1714,7 +1722,8 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                            
                            let idsToDelete: number[] = [];
                            let i = messages.length - 1;
-                           while (i >= 0 && !messages[i].isMe && messages[i].msgType !== 'narrator' && messages[i].msgType !== 'system') {
+                           // 删除最后一轮完整的AI回复（包括旁白和气泡，直到遇到用户消息或系统消息）
+                           while (i >= 0 && !messages[i].isMe && messages[i].msgType !== 'system') {
                              idsToDelete.push(messages[i].id);
                              i--;
                            }
@@ -2665,7 +2674,8 @@ const WechatScreen = ({
   onEditMessage,
   onClearChat,
   onTriggerAI,
-  isTyping
+  isTyping,
+  onUpdateFriend
 }: { 
   onBack: () => void;
   requests: any[];
