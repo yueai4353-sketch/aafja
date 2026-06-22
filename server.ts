@@ -2,12 +2,13 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' }));
 
   // API Route for Gemini Chat / Custom OpenAI compatible Chat
   app.post("/api/chat", async (req, res) => {
@@ -74,6 +75,131 @@ async function startServer() {
     } catch (error: any) {
       console.error("Chat API Error:", error);
       return res.status(500).json({ error: error?.message || "Internal server error" });
+    }
+  });
+
+  // API Route for Vision (image recognition)
+  app.post("/api/vision", async (req, res) => {
+    try {
+      const { image, prompt } = req.body;
+
+      if (!image) {
+        return res.status(400).json({ error: "缺少 image 参数" });
+      }
+
+      // 从 IndexedDB 设置中读取用户配置的 API 信息（前端会通过请求体传递）
+      // 这里优先使用与 /api/chat 一致的策略：尝试用户自定义 API，否则 fallback Gemini
+      const apiUrl = req.body.apiUrl;
+      const apiKey = req.body.apiKey;
+      const model = req.body.model || "gpt-4o";
+
+      // 提取纯 base64 数据和 MIME 类型
+      let base64Data = image;
+      let mimeType = "image/png";
+      const dataUrlMatch = image.match(/^data:(image\/\w+);base64,(.+)$/);
+      if (dataUrlMatch) {
+        mimeType = dataUrlMatch[1];
+        base64Data = dataUrlMatch[2];
+      }
+
+      if (apiUrl && apiKey) {
+        // 使用 OpenAI SDK 兼容接口
+        // 规范化 baseURL：移除末尾的 /chat/completions 或 /，确保 SDK 能正确拼接路径
+        let baseURL = apiUrl.trim();
+        baseURL = baseURL.replace(/\/chat\/completions\/?$/, '');
+        baseURL = baseURL.replace(/\/$/, '');
+
+        const openai = new OpenAI({
+          apiKey: apiKey,
+          baseURL: baseURL,
+        });
+
+        // 多模型动态适配器：根据模型名称决定图片格式
+        const modelLower = model.toLowerCase();
+        const isClaude = modelLower.includes('claude');
+        const promptText = prompt || "请描述这张图片的内容";
+        const fullBase64WithPrefix = `data:${mimeType};base64,${base64Data}`;
+
+        let userContent: any[];
+        if (isClaude) {
+          // Claude 原生格式
+          userContent = [
+            { type: "text", text: promptText },
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: mimeType,
+                data: base64Data,
+              },
+            },
+          ];
+        } else {
+          // 行业通用标准格式 (兼容 GPT-4o, Gemini, 以及大多数 OpenAI 兼容代理)
+          userContent = [
+            { type: "text", text: promptText },
+            {
+              type: "image_url",
+              image_url: {
+                url: fullBase64WithPrefix,
+              },
+            },
+          ];
+        }
+
+        const completion = await openai.chat.completions.create({
+          model: model,
+          stream: false,
+          messages: [
+            {
+              role: "user",
+              content: userContent,
+            },
+          ],
+          max_tokens: 1024,
+        });
+
+        const text = completion.choices[0]?.message?.content || "无法识别图片内容";
+        return res.json({ text });
+      } else {
+        // Fallback: 使用 Gemini 的视觉能力
+        const envApiKey = process.env.GEMINI_API_KEY;
+        if (!envApiKey) {
+          return res.status(500).json({ error: "未配置 API Key，无法进行图片识别。请在设置中配置 API。" });
+        }
+
+        const ai = new GoogleGenAI({
+          apiKey: envApiKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            }
+          }
+        });
+
+        const response = await ai.models.generateContent({
+          model: "gemini-2.0-flash",
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { text: prompt || "请描述这张图片的内容" },
+                {
+                  inlineData: {
+                    mimeType: mimeType,
+                    data: base64Data,
+                  },
+                },
+              ],
+            },
+          ],
+        });
+
+        return res.json({ text: response.text || "无法识别图片内容" });
+      }
+    } catch (error: any) {
+      console.error("Vision API Error:", error);
+      return res.status(500).json({ error: error?.message || "图片识别失败" });
     }
   });
 

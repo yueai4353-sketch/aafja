@@ -200,6 +200,9 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
     const forceMindCard = settingsRec?.value?.showMindCard || false;
 
     let prompt = '';
+    
+    // 收集聊天记录中用户发送的图片 base64（用于多模态 Vision 请求）
+    const imageMessages: string[] = [];
 
     const formattedHistory = recentMessages.map((msg: any) => {
         if (msg.msgType === 'system' || msg.msgType === 'narrator') {
@@ -211,7 +214,19 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
             }
             return `【系统/旁白】${msg.text}`;
         }
-        return `${msg.isMe ? myProfile?.name || '我' : persona.name}: ${msg.text}`;
+        // 图片消息：文本历史中标记为 [图片]，base64 数据通过 imageMessages 单独传递给 Vision
+        const text = msg.text || '';
+        if (msg.msgType === 'image' || text.startsWith('data:image')) {
+            // 收集图片 base64 数据（仅保留用户发送的图片用于 Vision 识别）
+            if (msg.isMe) {
+                const imgBase64 = text.startsWith('data:image') ? text : (msg.imageData || '');
+                if (imgBase64) {
+                    imageMessages.push(imgBase64);
+                }
+            }
+            return `${msg.isMe ? myProfile?.name || '我' : persona.name}: [图片]`;
+        }
+        return `${msg.isMe ? myProfile?.name || '我' : persona.name}: ${text}`;
     }).join('\n');
     const nowTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
 
@@ -241,6 +256,7 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
     }
     
     (result as any).prompt = prompt;
+    (result as any).imageMessages = imageMessages;
     return result;
 }
 

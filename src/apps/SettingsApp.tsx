@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Moon, Signal, Wifi, Battery, ChevronLeft, Plus, Globe, ChevronDown, ChevronUp } from 'lucide-react';
+import { Moon, Signal, Wifi, Battery, ChevronLeft, Plus, Globe, ChevronDown, ChevronUp, Download, Upload, Trash2 } from 'lucide-react';
 import { CurrentTime } from '../components';
+import { exportAppData, importAppData } from '../utils/backupManager';
+import { DexieChatDB } from '../db';
 
 const API_PRESETS = [
   { id: '', name: '-- 选择预设快速填充 --', url: '' },
@@ -36,6 +38,63 @@ export const SettingsApp = ({ onBack, desktopBg, key }: { onBack: () => void, de
 
   // Card expanded states
   const [expandedCard, setExpandedCard] = useState<'main' | 'memory' | ''>('');
+
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  // Data management
+  const importFileRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = async () => {
+    try {
+      await exportAppData();
+      showToast('数据导出成功');
+    } catch (e: any) {
+      showToast(`导出失败: ${e.message}`);
+    }
+  };
+
+  const handleImport = () => {
+    importFileRef.current?.click();
+  };
+
+  const handleClearAllData = async () => {
+    try {
+      // 清空 IndexedDB（所有表）
+      await DexieChatDB.messages.clear();
+      await DexieChatDB.appSettings.clear();
+      await DexieChatDB.memories.clear();
+
+      // 清空 localStorage
+      localStorage.clear();
+
+      // 清空 Cache Storage（Service Worker 缓存）
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      }
+
+      setShowClearConfirm(false);
+      showToast('数据已清空，正在重启...');
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (e: any) {
+      setShowClearConfirm(false);
+      showToast(`清空失败: ${e.message}`);
+    }
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    if (!window.confirm('警告：导入将覆盖当前所有数据！继续吗？')) return;
+    try {
+      await importAppData(file);
+      showToast('数据导入成功，正在刷新...');
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (e: any) {
+      showToast(`导入失败: ${e.message}`);
+    }
+  };
 
   React.useEffect(() => {
     const savedUrl = localStorage.getItem('os_api_url') || '';
@@ -677,6 +736,84 @@ export const SettingsApp = ({ onBack, desktopBg, key }: { onBack: () => void, de
             )}
           </AnimatePresence>
         </div>
+
+        {/* Clear Data Confirm Modal */}
+        {showClearConfirm && (
+          <div className="absolute inset-0 z-[70] flex items-center justify-center px-6">
+            <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={() => setShowClearConfirm(false)}></div>
+            <div className="bg-white rounded-2xl w-full max-w-[320px] p-6 relative z-10 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex flex-col items-center mb-5">
+                <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mb-4">
+                  <Trash2 size={26} className="text-red-500" strokeWidth={1.8} />
+                </div>
+                <h3 className="text-[17px] font-semibold text-gray-800 mb-2">确认清空所有数据？</h3>
+                <p className="text-[13px] text-gray-400 text-center leading-relaxed">
+                  此操作将删除所有聊天记录、角色、记忆、设置及浏览器缓存，且<span className="text-red-500 font-medium">不可恢复</span>。
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl text-[14px] font-medium active:bg-gray-200 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleClearAllData}
+                  className="flex-1 py-3 bg-red-500 text-white rounded-xl text-[14px] font-medium active:bg-red-600 transition-colors"
+                >
+                  确认清空
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Data Management Card */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-[28px] overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.04)] border border-white/50 mb-6">
+          <div className="px-5 py-5 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-500"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+            </div>
+            <div>
+              <h3 className="text-[16px] font-medium text-gray-800">数据管理</h3>
+              <p className="text-[12px] text-gray-400 mt-0.5">备份或恢复全部本地数据</p>
+            </div>
+          </div>
+          <div className="px-5 pb-5 flex gap-3 border-t border-gray-100/50 pt-4 flex-wrap">
+            <button
+              onClick={handleExport}
+              className="flex-1 flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 py-3.5 rounded-xl text-[14px] font-medium active:bg-gray-50 transition-colors shadow-sm"
+            >
+              <Download size={16} strokeWidth={2} className="text-green-500" />
+              导出数据
+            </button>
+            <button
+              onClick={handleImport}
+              className="flex-1 flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 py-3.5 rounded-xl text-[14px] font-medium active:bg-gray-50 transition-colors shadow-sm"
+            >
+              <Upload size={16} strokeWidth={2} className="text-blue-500" />
+              导入数据
+            </button>
+          </div>
+          <div className="px-5 pb-5">
+            <button
+              onClick={() => setShowClearConfirm(true)}
+              className="w-full flex items-center justify-center gap-2 bg-red-50 border border-red-100 text-red-500 py-3.5 rounded-xl text-[14px] font-medium active:bg-red-100 transition-colors"
+            >
+              <Trash2 size={16} strokeWidth={2} />
+              清空数据
+            </button>
+          </div>
+          <input
+            ref={importFileRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+        </div>
+
       </div>
     </motion.div>
   );

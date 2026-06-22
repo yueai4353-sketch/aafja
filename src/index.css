@@ -52,3 +52,14 @@
   50% { transform: rotate(1.5deg); }
   100% { transform: rotate(-1.5deg); }
 }
+
+/* 聊天图片消息气泡样式（嵌入在现有气泡容器内） */
+.inner-bubble-image {
+  max-width: 200px;
+  max-height: 250px;
+  width: auto;
+  height: auto;
+  border-radius: 6px;
+  object-fit: contain;
+  display: block;
+}

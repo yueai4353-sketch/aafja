@@ -82,6 +82,108 @@ import {
 
 import { MemoryApp as MemoryScreen } from './apps/MemoryApp';
 
+const CalendarWidget = () => {
+  const [view, setView] = useState<'minimal' | 'full'>('minimal');
+  const [startY, setStartY] = useState<number | null>(null);
+  const [bgImage, setBgImage] = useState<string | null>(() => localStorage.getItem('os_calendar_bg'));
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDragStart = (y: number) => {
+    setStartY(y);
+  };
+
+  const handleDragEnd = (y: number, isClick: boolean = false) => {
+    if (startY === null) return;
+    const diff = startY - y;
+    if (diff > 30 && view === 'minimal') {
+      setView('full');
+    } else if (diff < -30 && view === 'full') {
+      setView('minimal');
+    } else if (isClick && Math.abs(diff) < 5) {
+      fileInputRef.current?.click();
+    }
+    setStartY(null);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        setBgImage(result);
+        localStorage.setItem('os_calendar_bg', result);
+      };
+      reader.readAsDataURL(file);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const date = new Date();
+  const today = date.getDate();
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const days = [];
+  for (let i = 0; i < firstDay; i++) days.push(null);
+  for (let i = 1; i <= daysInMonth; i++) days.push(i);
+
+  const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+
+  return (
+    <div 
+      className="w-full h-full min-h-[140px] bg-white/10 backdrop-blur-lg rounded-[32px] sm:rounded-[40px] shadow-[0_8px_32px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.3),inset_0_0_20px_rgba(255,255,255,0.05)] border border-white/20 backdrop-saturate-150 flex flex-col items-center justify-center transition-transform duration-300 group-hover:scale-[1.02] overflow-hidden relative cursor-ns-resize"
+      onTouchStart={(e) => { e.stopPropagation(); handleDragStart(e.touches[0].clientY); }}
+      onTouchEnd={(e) => { e.stopPropagation(); handleDragEnd(e.changedTouches[0].clientY, true); }}
+      onMouseDown={(e) => { e.stopPropagation(); handleDragStart(e.clientY); }}
+      onMouseUp={(e) => { e.stopPropagation(); handleDragEnd(e.clientY, true); }}
+      onMouseLeave={(e) => { startY !== null && handleDragEnd(e.clientY, false); }}
+    >
+      {bgImage && <div className="absolute inset-0 z-0 pointer-events-none opacity-40 mix-blend-overlay" style={{ backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }}></div>}
+      <input type="file" ref={fileInputRef} onChange={handleImageUpload} className="hidden" accept="image/*" />
+      
+      {/* Daisy Top Left */}
+      <div className="absolute top-2 left-2 sm:top-3 sm:left-3 text-white/70 w-6 h-6 sm:w-8 sm:h-8 pointer-events-none drop-shadow-sm flex items-center justify-center z-10">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+          <path d="M12 7c-1-3-3-5-5-5-2 0-4 1-4 3 0 4 5 7 9 7m0 0c1-3 3-5 5-5 2 0 4 1 4 3 0 4-5 7-9 7m0 0c1 3 3 5 5 5 2 0 4-1 4-3 0-4-5-7-9-7m0 0c-1 3-3 5-5 5-2 0-4-1-4-3 0-4 5-7 9-7" fill="currentColor" fillOpacity="0.2" />
+          <circle cx="12" cy="12" r="2.5" fill="currentColor" />
+        </svg>
+      </div>
+
+      <div className={`absolute inset-0 flex flex-col items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${view === 'minimal' ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'}`}>
+        <div className="text-[12px] sm:text-[14px] font-semibold tracking-widest text-[#e87a90] mb-1 sm:mb-2 font-serif mt-1">
+          {date.toLocaleDateString('zh-CN', { month: 'long' })}
+        </div>
+        <div className="text-[52px] sm:text-[64px] leading-none font-medium tracking-tighter text-gray-800 drop-shadow-sm font-sans mb-1">
+          {today}
+        </div>
+        <div className="text-[10px] sm:text-[12px] text-gray-500 font-semibold tracking-wide">
+          {date.toLocaleDateString('zh-CN', { weekday: 'long' })}
+        </div>
+        <div className="absolute bottom-3 w-6 h-1 rounded-full bg-gray-400/30"></div>
+      </div>
+
+      <div className={`absolute inset-0 flex flex-col p-4 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${view === 'full' ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
+        <div className="text-[#e87a90] font-extrabold tracking-wider text-[11px] sm:text-[13px] text-center mb-2 font-serif mt-1">{date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })}</div>
+        <div className="grid grid-cols-7 gap-y-1 sm:gap-y-1.5 gap-x-0 w-full mb-1">
+          {dayNames.map((d, i) => (
+            <div key={i} className="text-gray-400 font-semibold text-[8px] sm:text-[9px] text-center">{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-y-1 sm:gap-y-1.5 gap-x-0 w-full flex-1">
+          {days.map((d, i) => (
+            <div key={i} className={`flex items-center justify-center text-[10px] sm:text-[11px] font-semibold h-[18px] sm:h-[22px] mx-0.5 sm:mx-1 ${d === today ? 'bg-[#e87a90] text-white shadow-sm shadow-[#e87a90]/40 rounded-full' : 'text-gray-700'}`}>
+              {d || ''}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook' | 'theme' | 'memory'>('home');
   const [myProfile, setMyProfile] = useState<any>(() => {
@@ -213,6 +315,14 @@ export default function App() {
   });
   const [editingPersona, setEditingPersona] = useState<any | null>(null);
   const [globalToast, setGlobalToast] = useState('');
+  const [consoleLogs, setConsoleLogs] = useState<string[]>([]);
+  const [consoleOpen, setConsoleOpen] = useState(false);
+  const [consoleViewAll, setConsoleViewAll] = useState(false);
+
+  const addConsoleLog = (msg: string) => {
+    const ts = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    setConsoleLogs(prev => [...prev, `[${ts}] ${msg}`]);
+  };
 
   const [homeCardBg, setHomeCardBg] = useState<string | null>(() => localStorage.getItem('homeCardBg'));
   const [homeCardAvatar, setHomeCardAvatar] = useState<string | null>(() => localStorage.getItem('homeCardAvatar'));
@@ -236,8 +346,6 @@ export default function App() {
       { id: '4', iconKey: 'huaji', label: '花集', screen: 'huaji' },
       { id: '5', iconKey: 'worldbook', label: '世界书', screen: 'worldbook' },
       { id: '6', iconKey: 'device', label: '查手机', screen: null },
-      { id: '7', iconKey: 'accounting', label: '记账', screen: null },
-      { id: '9', iconKey: 'period', label: '经期记录', screen: null },
     ];
     if (saved) {
       try {
@@ -263,6 +371,8 @@ export default function App() {
     }
     return [
       { id: '8', iconKey: 'secret', label: '偷偷', screen: null },
+      { id: '7', iconKey: 'accounting', label: '记账', screen: null },
+      { id: '9', iconKey: 'period', label: '经期记录', screen: null },
     ];
   });
 
@@ -488,15 +598,29 @@ export default function App() {
     }
     
     let useV2 = false;
+    let useCoT = false;
+    let cotStyle = '';
     const settingsRec = await AppDB.appSettings.get(`chat_settings_${friendId}`);
-    if (settingsRec && settingsRec.value && settingsRec.value.useV2Prompt) {
-        useV2 = true;
+    if (settingsRec && settingsRec.value) {
+        if (settingsRec.value.useV2Prompt) useV2 = true;
+        if (settingsRec.value.useCoT) useCoT = true;
+        if (settingsRec.value.cotStyle) cotStyle = settingsRec.value.cotStyle;
     }
     
+    // 构建最终 prompt，如果开启了线上思维连则追加 CoT 指令
+    let finalPrompt = (context as any).prompt as string;
+    if (useCoT) {
+      const cotInstruction = cotStyle.trim()
+        ? cotStyle.trim()
+        : '在每次回复之前，你必须先输出 <thinking> 标签，在其中深入分析角色心理、对话情境和最合适的回应方式，然后输出 </thinking>，最后再给出最终回复内容。';
+      finalPrompt = `${finalPrompt}\n\n[线上思维链指令]\n${cotInstruction}`;
+    }
+
     showGlobalToast('AI 正在思考...');
     setAiTypingStatus(prev => ({ ...prev, [friendId]: true }));
     try {
-      const prompt = (context as any).prompt;
+      addConsoleLog(`开始请求 AI (friendId: ${friendId})`);
+      const prompt = finalPrompt;
       
       const apiUrl = (localStorage.getItem('os_api_url') || '').trim();
       const apiKey = (localStorage.getItem('os_api_key') || '').trim();
@@ -505,7 +629,9 @@ export default function App() {
       const temperature = tempStr !== null ? parseFloat(tempStr) : 0.7;
 
       if (!apiUrl || !apiKey || !model) {
-        showGlobalToast('请先在设置中配置 API 地址、密钥和模型');
+        const errMsg = '请先在设置中配置 API 地址、密钥和模型';
+        showGlobalToast(errMsg);
+        addConsoleLog(`[ERROR] ${errMsg}`);
         return;
       }
 
@@ -532,22 +658,168 @@ export default function App() {
         },
         body: JSON.stringify({
           model: model,
-          messages: [{ role: 'user', content: prompt }],
-          temperature: temperature
+          messages: [{ role: 'user', content: (() => {
+            // 如果上下文中有图片，构建多模态 Vision 格式的 content
+            const imgs: string[] = (context as any).imageMessages || [];
+            if (imgs.length > 0) {
+              const contentParts: any[] = [{ type: 'text', text: prompt }];
+              imgs.forEach((imgBase64: string) => {
+                contentParts.push({
+                  type: 'image_url',
+                  image_url: { url: imgBase64 }
+                });
+              });
+              return contentParts;
+            }
+            return prompt;
+          })() }],
+          temperature: temperature,
+          stream: false
         })
       });
 
+      // 增强 HTTP 状态拦截：优先检查状态码，提取真实后端报错信息
       if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`API 请求失败: ${response.status} ${errText.substring(0, 200)}`);
+        let errDetail = '';
+        try {
+          errDetail = await response.text();
+        } catch (_e) {
+          errDetail = '无法读取错误详情';
+        }
+        const httpErr = `API 请求失败 (${response.status}): ${errDetail.substring(0, 300)}`;
+        console.error(`[AI Chat] HTTP ${response.status} 错误:`, errDetail);
+        addConsoleLog(`[ERROR] ${httpErr}`);
+        throw new Error(httpErr);
       }
 
-      const rawData = await response.json();
       let data: { text?: string; error?: string };
-      if (rawData.choices && rawData.choices.length > 0 && rawData.choices[0].message) {
-        data = { text: rawData.choices[0].message.content };
+
+      // 检查响应是否为流式 SSE（某些 API 即使设置 stream:false 仍返回流式数据）
+      const contentType = response.headers.get('content-type') || '';
+      console.log('[AI Chat] Response content-type:', contentType);
+
+      if (contentType.includes('text/event-stream') || contentType.includes('text/plain')) {
+        // 流式 SSE 响应：使用 reader 逐块读取并拼接内容
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error('无法读取响应流（response.body 为空）');
+        }
+        const decoder = new TextDecoder('utf-8');
+        let fullText = '';
+        let buffer = '';
+        let chunkCount = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          chunkCount++;
+          console.log(`[AI Chat] Raw Stream Chunk #${chunkCount}:`, chunk);
+          buffer += chunk;
+
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            // 跳过 SSE 注释行
+            if (trimmed.startsWith(':')) continue;
+            if (!trimmed.startsWith('data:')) {
+              console.log('[AI Chat] 非 data 行，跳过:', trimmed);
+              continue;
+            }
+            const jsonStr = trimmed.slice(5).trim();
+            if (jsonStr === '[DONE]') {
+              console.log('[AI Chat] 收到 [DONE] 标记');
+              continue;
+            }
+            if (!jsonStr) continue;
+            try {
+              const parsed = JSON.parse(jsonStr);
+              // 优先尝试流式 delta 格式
+              const delta = parsed.choices?.[0]?.delta?.content;
+              if (typeof delta === 'string') {
+                fullText += delta;
+              }
+              // 也兼容非流式 JSON 格式被意外包装在 data: 中的情况
+              const directContent = parsed.choices?.[0]?.message?.content;
+              if (typeof directContent === 'string') {
+                fullText += directContent;
+              }
+              // 兼容某些 API 直接返回 text 字段
+              if (!delta && !directContent && typeof parsed.text === 'string') {
+                fullText += parsed.text;
+              }
+            } catch (parseErr) {
+              console.warn('[AI Chat] SSE JSON 解析失败:', jsonStr, parseErr);
+            }
+          }
+        }
+        // 处理 buffer 中可能残留的最后一行
+        if (buffer.trim()) {
+          const trimmed = buffer.trim();
+          if (trimmed.startsWith('data:')) {
+            const jsonStr = trimmed.slice(5).trim();
+            if (jsonStr && jsonStr !== '[DONE]') {
+              try {
+                const parsed = JSON.parse(jsonStr);
+                const delta = parsed.choices?.[0]?.delta?.content;
+                if (typeof delta === 'string') fullText += delta;
+                const directContent = parsed.choices?.[0]?.message?.content;
+                if (typeof directContent === 'string') fullText += directContent;
+                if (!delta && !directContent && typeof parsed.text === 'string') fullText += parsed.text;
+              } catch (_e) {}
+            }
+          }
+        }
+        console.log(`[AI Chat] 流式读取完成，共 ${chunkCount} 个块，拼接文本长度: ${fullText.length}`);
+        data = fullText ? { text: fullText } : { error: `API 流式响应为空（共读取 ${chunkCount} 个块）` };
       } else {
-        data = { error: 'API 返回格式异常' };
+        // 标准 JSON 响应（或伪装成 JSON 的 SSE）
+        const rawText = await response.text();
+        console.log('[AI Chat] 响应原始文本前200字符:', rawText.substring(0, 200));
+
+        // 兼容：即使 content-type 是 application/json，内容也可能是 SSE 格式
+        if (rawText.trimStart().startsWith('data:')) {
+          console.log('[AI Chat] 检测到 data: 前缀，按 SSE 格式解析');
+          let fullText = '';
+          const lines = rawText.split('\n');
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            if (trimmed.startsWith(':')) continue;
+            if (!trimmed.startsWith('data:')) continue;
+            const jsonStr = trimmed.slice(5).trim();
+            if (jsonStr === '[DONE]' || !jsonStr) continue;
+            try {
+              const parsed = JSON.parse(jsonStr);
+              const delta = parsed.choices?.[0]?.delta?.content;
+              if (typeof delta === 'string') fullText += delta;
+              const directContent = parsed.choices?.[0]?.message?.content;
+              if (typeof directContent === 'string') fullText += directContent;
+              if (!delta && !directContent && typeof parsed.text === 'string') fullText += parsed.text;
+            } catch (parseErr) {
+              console.warn('[AI Chat] SSE 行解析失败:', trimmed, parseErr);
+            }
+          }
+          data = fullText ? { text: fullText } : { error: `API SSE 响应解析为空，原始内容: ${rawText.substring(0, 150)}` };
+        } else {
+          try {
+            const rawData = JSON.parse(rawText);
+            if (rawData.choices && rawData.choices.length > 0 && rawData.choices[0].message) {
+              data = { text: rawData.choices[0].message.content };
+            } else if (rawData.text) {
+              data = { text: rawData.text };
+            } else if (rawData.error) {
+              data = { error: typeof rawData.error === 'string' ? rawData.error : JSON.stringify(rawData.error) };
+            } else {
+              data = { error: `API 返回格式异常: ${rawText.substring(0, 150)}` };
+            }
+          } catch (_e) {
+            data = { error: `无法解析 API 响应: ${rawText.substring(0, 150)}` };
+          }
+        }
       }
       
       if (data.text) {
@@ -556,6 +828,8 @@ export default function App() {
         if (useV2) {
            try {
              let jsonStr = data.text.trim();
+             // 剥离 <thinking>/<thought> 标签（CoT 开启时 AI 可能在 JSON 前输出思考块）
+             jsonStr = jsonStr.replace(/<(thinking|thought)>[\s\S]*?<\/\1>/gi, '').trim();
              if (jsonStr.startsWith("```json")) {
                  jsonStr = jsonStr.substring(7);
                  if (jsonStr.endsWith("```")) jsonStr = jsonStr.substring(0, jsonStr.length - 3);
@@ -659,6 +933,8 @@ export default function App() {
         if (useV2) {
             try {
                 let testStr = data.text!.trim();
+                // 剥离 <thinking>/<thought> 标签
+                testStr = testStr.replace(/<(thinking|thought)>[\s\S]*?<\/\1>/gi, '').trim();
                 if (testStr.startsWith("```json")) testStr = testStr.substring(7);
                 else if (testStr.startsWith("```")) testStr = testStr.substring(3);
                 if (testStr.endsWith("```")) testStr = testStr.substring(0, testStr.length - 3);
@@ -672,6 +948,43 @@ export default function App() {
             }
         }
         
+        // 线下模式：从原始文本中提取 [MIND_CARD] 标记
+        if (!mindCardData) {
+            const fullText = msgsToSave.join('\n');
+            const mindCardRegex = /\[MIND_CARD\]([\s\S]*?)\[\/MIND_CARD\]/;
+            const mindCardMatch = fullText.match(mindCardRegex);
+            if (mindCardMatch) {
+                // 从所有消息中移除 MIND_CARD 标记
+                for (let i = 0; i < msgsToSave.length; i++) {
+                    msgsToSave[i] = msgsToSave[i].replace(mindCardRegex, '').trim();
+                }
+                // 解析心声卡片内容
+                const lines = mindCardMatch[1].split('\n');
+                mindCardData = {};
+                lines.forEach((line: string) => {
+                    if (line.includes('：')) {
+                        const [k, ...v] = line.split('：');
+                        const keyStr = k.trim();
+                        const valStr = v.join('：').trim();
+                        if (keyStr === '着装') mindCardData.attire = valStr;
+                        else if (keyStr === '动作' || keyStr === '行为') mindCardData.action = valStr;
+                        else if (keyStr === '心思' || keyStr === '真实心声' || keyStr === '心声') mindCardData.thought = valStr;
+                        else if (keyStr === '阴暗面') mindCardData.dark_side = valStr;
+                    } else if (line.includes(':')) {
+                        const [k, ...v] = line.split(':');
+                        const keyStr = k.trim();
+                        const valStr = v.join(':').trim();
+                        if (keyStr === '着装') mindCardData.attire = valStr;
+                        else if (keyStr === '动作' || keyStr === '行为') mindCardData.action = valStr;
+                        else if (keyStr === '心思' || keyStr === '真实心声' || keyStr === '心声') mindCardData.thought = valStr;
+                        else if (keyStr === '阴暗面') mindCardData.dark_side = valStr;
+                    }
+                });
+                // 如果解析出来是空对象，置为 null
+                if (Object.keys(mindCardData).length === 0) mindCardData = null;
+            }
+        }
+
         for (let i = 0; i < msgsToSave.length; i++) {
             let rtext = msgsToSave[i];
             
@@ -827,7 +1140,10 @@ export default function App() {
       }
     } catch (err: any) {
       console.error(err);
-      showGlobalToast(err.message || 'AI 接口调用失败');
+      const errMsg = err.message || 'AI 接口调用失败';
+      showGlobalToast(errMsg);
+      addConsoleLog(`[ERROR] ${errMsg}`);
+      setConsoleOpen(true);
     } finally {
       setAiTypingStatus(prev => ({ ...prev, [friendId]: false }));
     }
@@ -960,6 +1276,8 @@ export default function App() {
               onOpenMyProfile={() => setCurrentScreen('my_profile')}
               onTriggerAI={handleTriggerAI}
               isTyping={aiTypingStatus}
+              consoleLogs={consoleLogs}
+              onClearConsoleLogs={() => setConsoleLogs([])}
               onSendMessage={(friendId, text, isMe, msgType, recalledContent) => {
                 const ts = Date.now();
                 ChatDB.messages.add({
@@ -1113,8 +1431,8 @@ export default function App() {
           {/* Main Desktop Layout */}
           <div className="flex-1 flex flex-col mt-4 min-h-0 pb-2 overflow-hidden">
             {/* App Grid Layer */}
-            <div 
-              className="flex-1 min-h-0 flex flex-col justify-end mb-4 sm:mb-8 lg:mb-12 relative overflow-hidden"
+          <div 
+              className="flex-1 min-h-0 flex flex-col justify-center mb-0 relative overflow-hidden"
               onTouchStart={(e) => {
                 const touch = e.touches[0];
                 const startX = touch.clientX;
@@ -1258,8 +1576,10 @@ export default function App() {
                       className="grid grid-cols-4 gap-x-4 sm:gap-x-8 md:gap-x-12 lg:gap-x-20 gap-y-6 sm:gap-y-10 md:gap-y-14 lg:gap-y-16 px-2 sm:px-6 relative"
                       onClick={() => { if (isEditingApps) setIsEditingApps(false); }}
                     >
-                      {/* Left: Empty space for layout */}
-                      <div className="col-span-2 row-span-2 pointer-events-none"></div>
+                      {/* Left: Calendar Widget */}
+                      <div className="col-span-2 row-span-2 pointer-events-auto cursor-default group z-20" onClick={(e) => { e.stopPropagation(); if (isEditingApps) setIsEditingApps(false); }}>
+                        <CalendarWidget />
+                      </div>
                       
                       <SortableContext items={desktopApps.map((i: any) => i.id)} strategy={rectSortingStrategy}>
                         {desktopApps.map((app: any) => (
@@ -1349,6 +1669,7 @@ export default function App() {
               </div>
             </div>
           </div>
+
 
           {/* Bottom Dock */}
           <div className="flex-shrink-0 flex flex-col justify-end pb-[env(safe-area-inset-bottom,2vh)] mb-3 sm:mb-6 relative z-20 px-4 sm:px-8 md:px-20 lg:px-32">

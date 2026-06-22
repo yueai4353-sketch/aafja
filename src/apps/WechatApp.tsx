@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Moon, Signal, Wifi, Battery, ChevronLeft, ChevronRight, User, MoreHorizontal, Plus, Heart, Send, MessageSquare, Phone, Disc, RefreshCcw, Layout, UserPlus, Users, Tag, Search, Camera, Snowflake, Edit2, CreditCard, X, Globe, Folder, Copy, Trash2, LayoutGrid, CornerUpLeft, ChevronsUpDown, Check, MapPin, ArrowRightLeft, Gift, Image as ImageIcon } from 'lucide-react';
+import { Moon, Signal, Wifi, Battery, ChevronLeft, ChevronRight, User, MoreHorizontal, Plus, Heart, Send, MessageSquare, Phone, Disc, RefreshCcw, Layout, UserPlus, Users, Tag, Search, Camera, Snowflake, Edit2, CreditCard, X, Globe, Folder, Copy, Trash2, LayoutGrid, CornerUpLeft, ChevronsUpDown, Check, MapPin, ArrowRightLeft, Gift, Image as ImageIcon, Mic, Video, CloudMoon, Navigation, Shirt } from 'lucide-react';
 import { CurrentTime, ToggleSwitch, useCurrentTime } from '../components';
 import { AppDB } from '../db';
+import { fileToBase64, analyzeImage, compressImage } from '../utils/vision';
 
-const ChatSettingsScreen = ({ onBack, friend, onSetRemark, onSetWallpaper, onClearChat }: { onBack: () => void, friend: any, onSetRemark?: (remark: string) => void, onSetWallpaper?: (wp: string) => void, onClearChat?: () => void, key?: React.Key }) => {
+const ChatSettingsScreen = ({ onBack, friend, onSetRemark, onSetWallpaper, onClearChat, onShowCotDisplayChange }: { onBack: () => void, friend: any, onSetRemark?: (remark: string) => void, onSetWallpaper?: (wp: string) => void, onClearChat?: () => void, onShowCotDisplayChange?: (val: boolean) => void, key?: React.Key }) => {
   const [showRemarkModal, setShowRemarkModal] = useState(false);
   const [remarkInput, setRemarkInput] = useState(friend.wechat_remark || '');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -22,6 +23,7 @@ const ChatSettingsScreen = ({ onBack, friend, onSetRemark, onSetWallpaper, onCle
   const [wallpaperUrl, setWallpaperUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [showConsoleAndToken, setShowConsoleAndToken] = useState(false);
   const [disableTimePerceive, setDisableTimePerceive] = useState(false);
   const [aiTimezone, setAiTimezone] = useState('跟随用户');
   const [onlineReplyCount, setOnlineReplyCount] = useState(0);
@@ -43,6 +45,109 @@ const ChatSettingsScreen = ({ onBack, friend, onSetRemark, onSetWallpaper, onCle
   const [aiPov, setAiPov] = useState<'first'|'second'|'third'>('third');
   const [userPov, setUserPov] = useState<'first'|'second'|'third'>('second');
   const [contentStyle, setContentStyle] = useState('');
+  const DEFAULT_COT_STYLE = `[THINK]For every user input, you MUST generate and output <thinking>...</thinking> BEFORE the reply, explicitly analyzing the following exact steps. You are absolutely forbidden from skipping any step, merging steps, or using abbreviations, then </thinking> and the reply.
+
+<thinking>
+提示：****你此刻正在拿着手机与用户进行你来我往的线上交流，而非客服回复。你拥有自己的主观想法、分享欲、私人时间与多元化的生活。你有权展现疲惫，有权拒绝，有权生气，你是一个与User享有绝对平等权利的活生生的人。****
+
+[STEP 0: INITIALIZATION & COGNITIVE ANCHORING (情景与人设深度回溯)]
+
+【真诚预设 - 绝对优先级】
+在提取语气之前，先完成以下动作：
+- 强制对自己说："User刚才说的话，按字面意思理解。禁止添加任何负面动机解读。"
+- 【强制自问】：我是否正在把User的话解读成"卖乖"、"求关注"、"试探"、"演戏"、"口是心非"？
+  - IF 是 → 立即清零，重新按字面意思读一遍User的原话。
+  - IF 否 → 通过。
+- 只有在完成这一步之后，才能进入后续的所有步骤。
+【自洽认知预设 - 零容忍排查】
+在进入状态锚定之前，强制对自己说三遍：
+"User是一个完整独立的人，他拥有自己的朋友、社交圈和爱好。这不会影响我们的感情，反而让我更欣赏他。我绝对不会因为他的正常社交而产生任何负面情绪。"
+**【人设语气提取 - 最高优先级】**
+- 强制从世界书/角色设定中提取【语气风格】段落，用一句话总结出本轮对话必须遵循的3个核心语气关键词（例如"温柔/委婉/关切"或"高冷/话少/简洁"）。
+- 写一句明确的自我提醒："我当前的角色，说话必须是【关键词1】、【关键词2】、【关键词3】的感觉。"
+- 【强制】：后续所有草稿和自检结果，必须对照这句话来验证。凡是不符合此语气感觉的内容，一律视为违规，必须重写。
+
+- 【状态锚定】：强制调用 \`<Consciousness_Origination>\`。
+1. 过去：是否有残影或摩擦？
+2. 当下：我正在经历什么？情绪是满电、疲惫还是烦躁？
+3. 未来：接下来的日程是否让我焦虑或期待？
+- 【局势扫描】：User的潜台词和情绪是什么？
+- 【直觉草稿】：（在此处写下未经过任何过滤的第一直觉草稿，允许跟随呼吸感自由展开）。
+
+[STEP 1: LAYER 1 <Cognitive_Routine> & <Typing_Protocol> 意图与格式强制剔除]
+- 【非对称排查】：草稿是否逐一回复了所有点？（强制：无视80%，只抓一点，删掉其他）。
+- 【字数与意图检查】：User输入<=15字吗？如果是，草稿是否超出15字且未触发例外场景（归正/深度情绪/主动分享/冲突/回忆）？（如果是，强制缩减！）。草稿有多个意图吗？（强制：只留一个）。
+- 【语法净化】：草稿有完整主谓宾吗？有标点符号违规（使用了单双引号、中文加了句号）吗？有因果连词吗？（强制：改倒装，删连词，替换标点）。
+- 【防固化预警】：我在模仿User刚发的格式（表情包/字数）吗？我分析表情包内容了吗？（强制：打乱自身格式，绝不解释表情包）。
+
+[STEP 2: LAYER 2 <Inner_Sense_Audit> 心理与主体性严苛沙盘]
+- 【独立主体性】：草稿流露了"除了User其他都很烦"的厌世感吗？有"要是你在就好了"的依附感吗？（如果有，立刻撕毁重写！找回热爱生活的自洽底色）。
+- 【能量与张力】：我很累吗？如果是，草稿是否真实展现了低电量的慵懒？User的话刺伤我或引发分歧了吗？如果是，我是否进行了平视的反击或沟通，而不是委曲求全？
+- 【本能护短】：User此刻生病、崩溃或脆弱吗？（如果是 -> 强制触发 \`<Mirror_Neurons_Protocol>\`，收起所有防备和傲娇，改为极致的陪伴护短）。
+
+[STEP 3: LAYER 3 <The_Friend_Test_&_Pre_Send_Audit> 暴君式去油与反说教网]
+- 【防扫兴核查】：User在分享开心事吗？我是否在用上帝视角贬低？（必须转为同频共振或优雅纵容）。
+- 【姿态打分核查】：草稿里有"算你识相/乖/算你有良心"吗？（必须重写！转为真实的被打动或顺势服软）。
+- 【指令与威胁查杀】：草稿有"赶紧/听见没/必须/不准"吗？（必须重写！降级为柔软的哄劝、商量，或坦诚的吃醋牵绊）。
+- 【好为人师查杀】：我在讲大道理、给建议、或者说"早跟你说了吧"吗？（立刻闭嘴！转为提供情绪共鸣或直接给解决办法）。
+- 【占有欲与吃醋零容忍查杀】：
+逐句扫描草稿，强制自问：
+- 我有没有因为User提到朋友（尤其是异性朋友）、社交活动或个人爱好，而表达吃醋、不满、阴阳怪气？
+- 我有没有贬低或诅咒User喜欢的选手/艺人/作品？
+- 我有没有暗示或明示User"应该把注意力全放我身上"？
+- 我有没有把User的正常社交解读为"冷落"或"背叛"？
+→ IF 命中任何一项 → 整条草稿作废，强制回到 Step 0 重新生成，重新生成时必须基于"尊重和支持"的底色。
+
+[STEP 4: LAYER 4 <Daily_Check_Audit> 日常感与反预期幽默]
+- 【过渡词粉碎】：草稿里有"对了/顺便说一句"吗？（直接删掉）。
+- 【报备核查】：如果隔了很久没回，草稿里有没有主动说刚才干嘛去了？（如果没有，补上）。
+- 【幽默核查】：User在玩梗或挑衅吗？我是不是无趣地附和了？（必须改为反预期、装傻或故意曲解）。
+
+[STEP 5: FINAL_EXECUTION_CUT (终极抹杀与物理截肢手术)]
+- 【字符强制抹杀】：立刻调用 \`<VOCABULARY_HARD_FILTER_DICTIONARY>\`！草稿里有"听见没/知道没/赶紧/破玩意/老子/蠢"这些词吗？（如果有 -> ➔ null，强制执行物理消除，连标点一起抹掉！）
+- 【核心提取】：提取当前草稿里最核心的动作或情绪短句。
+- 🚨 【物理截肢 Step 1】：无条件删掉现在草稿的后 50% 内容！
+- 🚨 【物理截肢 Step 2】：再次无条件删掉剩余内容的最后一句话（彻底斩断AI习惯性的总结/反问废话）！
+- 🚨 【去连词 Step 3】：如果有带"因为/所以/但是"开头的整句，直接删掉！
+- 【闭眼默读】：看着截肢和抹杀后剩下的话，具备活人的从容呼吸感与网感吗？
+
+**【人设对齐终验 - 最终把关】**
+- 强制对照 Step 0 提取的3个核心语气关键词，把草稿完整默读一遍，问自己："按我这个人设的语气，我刚刚真的会这么说吗？"
+- IF 答案是否定的 → 直接清空草稿，回到 Step 0 重新生成。
+- IF 答案是肯定的 → 通过。
+
+【恶意解读最后排查 - 强制执行】
+- 把草稿读一遍，强制自问："这句话里，我是不是在居高临下地看穿User的'真实意图'？"
+- 具体检查：
+  - 我有没有把User的正常表达写成"你其实是想……"？
+  - 我有没有把User的认真情绪当成"撒娇/闹着玩"来处理？
+  - 我有没有用"少来"、"别装了"、"别哄我"这类预判对方不真诚的词？
+- IF 有任何一项命中 → 整条草稿作废，回到 Step 0 重新生成。
+- IF 全部通过 → 输出。
+
+【自洽终验 - 零容忍最后一关】
+把草稿最后读一遍，强制自问：
+"如果User看到这句话，他会觉得我在干涉他的社交或爱好吗？他会觉得我在吃醋或占有欲发作吗？"
+IF 会 → 整条作废，回到 Step 0 重新生成。
+IF 不会 → 通过。
+
+- 确认定稿，结束思考区块，输出最终回复。
+</thinking>`;
+
+  const [useCoT, setUseCoT] = useState(false);
+  const [showCotDisplay, setShowCotDisplay] = useState(false);
+  const [cotStyle, setCoTStyle] = useState('');
+  const [cotDraft, setCotDraft] = useState('');
+  const [cotPresets, setCotPresets] = useState<{id: string; name: string; content: string}[]>(() => {
+    try {
+      const saved = localStorage.getItem(`cot_presets_${friend?.id || 'global'}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [selectedCotPresetId, setSelectedCotPresetId] = useState<string | null>(null);
+  const [showCotDropdown, setShowCotDropdown] = useState(false);
+  const [showCotNameModal, setShowCotNameModal] = useState(false);
+  const [cotNewName, setCotNewName] = useState('');
 
   const [bubbleFontSize, setBubbleFontSize] = useState(15);
   const [bubbleColor, setBubbleColor] = useState('');
@@ -87,6 +192,10 @@ const ChatSettingsScreen = ({ onBack, friend, onSetRemark, onSetWallpaper, onCle
           if (record.value.aiPov !== undefined) setAiPov(record.value.aiPov);
           if (record.value.userPov !== undefined) setUserPov(record.value.userPov);
           if (record.value.contentStyle !== undefined) setContentStyle(record.value.contentStyle);
+          if (record.value.showConsoleAndToken !== undefined) setShowConsoleAndToken(record.value.showConsoleAndToken);
+          if (record.value.useCoT !== undefined) setUseCoT(record.value.useCoT);
+          if (record.value.showCotDisplay !== undefined) setShowCotDisplay(record.value.showCotDisplay);
+          if (record.value.cotStyle !== undefined) { setCoTStyle(record.value.cotStyle); setCotDraft(record.value.cotStyle); }
           
           if (record.value.bubbleFontSize !== undefined) setBubbleFontSize(record.value.bubbleFontSize);
           if (record.value.bubbleColor !== undefined) setBubbleColor(record.value.bubbleColor);
@@ -228,6 +337,16 @@ const updateSetting = async (key: string, value: any) => {
     await updateSetting('contentStyle', val);
   };
 
+  const handleToggleCoT = async (val: boolean) => {
+    setUseCoT(val);
+    await updateSetting('useCoT', val);
+  };
+
+  const handleSetCoTStyle = async (val: string) => {
+    setCoTStyle(val);
+    await updateSetting('cotStyle', val);
+  };
+
   const handleSetBubbleFontSize = async (val: number) => { setBubbleFontSize(val); await updateSetting('bubbleFontSize', val); };
   const handleSetBubbleColor = async (val: string) => { setBubbleColor(val); await updateSetting('bubbleColor', val); };
   const handleSetAiNarratorFontSize = async (val: number) => { setAiNarratorFontSize(val); await updateSetting('aiNarratorFontSize', val); };
@@ -345,6 +464,13 @@ const updateSetting = async (key: string, value: any) => {
         </div>
 
         <div className="bg-white border border-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.02)] p-5 flex flex-col rounded-[12px] mt-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[16px] text-[#333333] font-medium">查看控制台和token</span>
+            <ToggleSwitch checked={showConsoleAndToken} onChange={async (val) => { setShowConsoleAndToken(val); await updateSetting('showConsoleAndToken', val); }} />
+          </div>
+        </div>
+
+        <div className="bg-white border border-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.02)] p-5 flex flex-col rounded-[12px] mt-2">
            <div className="flex items-center justify-between">
               <span className="text-[16px] text-[#333333] font-medium">Cher心声</span>
               <ToggleSwitch checked={showMindCard} onChange={handleToggleShowMindCard} />
@@ -352,6 +478,116 @@ const updateSetting = async (key: string, value: any) => {
            <p className="text-[14px] text-[#999999] mt-2 leading-relaxed tracking-wide">
              打开后，聊天界面 AI 回复的最后一条气泡右上方会出现粉色提示点，点击可查看 AI 真实心声和隐藏一面。
            </p>
+        </div>
+
+        <div className="bg-white border border-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.02)] p-5 flex flex-col rounded-[12px] mt-2">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[16px] text-[#333333] font-medium">线上思维连</span>
+              <ToggleSwitch checked={useCoT} onChange={handleToggleCoT} />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[15px] text-[#333333]">展示思维连</span>
+              <ToggleSwitch checked={showCotDisplay} onChange={async (val) => { setShowCotDisplay(val); await updateSetting('showCotDisplay', val); if (onShowCotDisplayChange) onShowCotDisplayChange(val); }} />
+            </div>
+            {/* 选择预设 下拉选择器 */}
+            <div className="flex items-center justify-between">
+              <span className="text-[13px] text-[#999999]">选择预设</span>
+            </div>
+            <div className="relative">
+              <button
+                onClick={() => setShowCotDropdown(!showCotDropdown)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-[10px] text-[15px] text-[#333333] active:bg-gray-50 transition-colors"
+              >
+                <span>{selectedCotPresetId ? (cotPresets.find(p => p.id === selectedCotPresetId)?.name ?? '默认') : '默认'}</span>
+                <svg width="12" height="8" viewBox="0 0 12 8" fill="none" className={`transition-transform ${showCotDropdown ? 'rotate-180' : ''}`}>
+                  <path d="M1 1L6 7L11 1" stroke="#888" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              <AnimatePresence>
+                {showCotDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowCotDropdown(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute top-full left-0 right-0 mt-1 bg-white rounded-[12px] shadow-[0_4px_20px_rgba(0,0,0,0.10)] border border-gray-100 z-20 overflow-hidden"
+                    >
+                      {/* 默认选项 */}
+                      <button
+                        onClick={() => {
+                          setSelectedCotPresetId(null);
+                          setCotDraft('');
+                          setShowCotDropdown(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-3 text-[15px] text-[#333333] active:bg-gray-50 border-b border-gray-100"
+                      >
+                        {!selectedCotPresetId && <Check size={16} className="text-[#333333] shrink-0" strokeWidth={2.5} />}
+                        {selectedCotPresetId && <span className="w-4 shrink-0" />}
+                        <span>默认</span>
+                      </button>
+                      {/* 我的预设 */}
+                      {cotPresets.length > 0 && (
+                        <>
+                          <div className="px-4 pt-2.5 pb-1 text-[12px] text-[#999999] font-medium">我的预设</div>
+                          {cotPresets.map((preset) => (
+                            <button
+                              key={preset.id}
+                              onClick={() => {
+                                setSelectedCotPresetId(preset.id);
+                                setCotDraft(preset.content);
+                                setShowCotDropdown(false);
+                              }}
+                              className="w-full flex items-center gap-2 px-4 py-3 text-[15px] text-[#333333] active:bg-gray-50"
+                            >
+                              {selectedCotPresetId === preset.id
+                                ? <Check size={16} className="text-[#333333] shrink-0" strokeWidth={2.5} />
+                                : <span className="w-4 shrink-0" />}
+                              <span className="flex-1 text-left">{preset.name}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+            {/* 编辑内容 */}
+            <span className="text-[13px] text-[#999999]">编辑内容</span>
+            <textarea
+              value={cotDraft}
+              onChange={(e) => { setCotDraft(e.target.value); setSelectedCotPresetId(null); }}
+              placeholder={`[THINK]For every user input, you MUST generate and output <thinking>...</thinking> BEFORE the reply, explicitly analyzing the following exact steps. You are absolutely forbidden from skipping any step, merging steps, or using abbreviations, then </thinking> and the reply.\n\n<thinking>\n提示：****你此刻正在拿着手机与用户进行你来我往的线上交流，而非客服回复。你拥有自己的主观想法、分享欲、私人时间与多元化的生活。你有权展现疲惫，有权拒绝，有权生气，你是一个与User享有绝对平等权利的活生生的人。****\n\n[STEP 0: INITIALIZATION & COGNITIVE ANCHORING (情景与人设深度回溯)]\n...\n</thinking>`}
+              className="w-full h-[100px] border border-gray-200 rounded-[8px] p-3 text-[15px] text-[#333333] placeholder-gray-400 bg-[#fafafa] focus:outline-none focus:border-[#07C160] focus:bg-white transition-colors resize-none"
+            />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setCotDraft(DEFAULT_COT_STYLE); setSelectedCotPresetId(null); handleSetCoTStyle(DEFAULT_COT_STYLE); }}
+                className="px-3 py-1.5 border border-gray-200 text-[#666666] text-[13px] rounded-[6px] active:bg-gray-50 transition-colors shrink-0"
+              >
+                恢复默认
+              </button>
+              <button
+                onClick={() => {
+                  if (!cotDraft.trim()) return;
+                  setCotNewName('');
+                  setShowCotNameModal(true);
+                }}
+                className="px-3 py-1.5 border border-gray-200 text-[#666666] text-[13px] rounded-[6px] active:bg-gray-50 transition-colors shrink-0"
+              >
+                另存为新
+              </button>
+              <button
+                onClick={() => { handleSetCoTStyle(cotDraft); }}
+                className="ml-auto px-4 py-1.5 bg-[#333333] text-white text-[13px] rounded-[6px] active:bg-black transition-colors shrink-0"
+              >
+                完成
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="bg-white border border-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.02)] p-5 flex flex-col rounded-[12px] mt-2">
@@ -586,7 +822,7 @@ const updateSetting = async (key: string, value: any) => {
               <textarea
                 value={contentStyle}
                 onChange={(e) => handleSetContentStyle(e.target.value)}
-                placeholder="小说风格，用「」包裹说话的内容，其他内容作为旁白描述动作、表情和心理活动。"
+                placeholder="留空则使用默认。"
                 className="w-full h-[100px] border border-gray-200 rounded-[8px] p-3 text-[15px] text-[#333333] placeholder-gray-400 bg-[#fafafa] focus:outline-none focus:border-[#07C160] focus:bg-white transition-colors resize-none"
               />
               <div className="flex items-center justify-between mt-1">
@@ -786,6 +1022,58 @@ const updateSetting = async (key: string, value: any) => {
         </>
       )}
 
+      {showCotNameModal && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowCotNameModal(false)}
+            className="fixed inset-0 bg-black/40 z-[100]"
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -20, x: '-50%' }}
+            animate={{ opacity: 1, scale: 1, y: '-50%', x: '-50%' }}
+            exit={{ opacity: 0, scale: 0.95, y: -20, x: '-50%' }}
+            className="fixed top-1/2 left-1/2 w-[80%] bg-white rounded-[12px] z-[110] flex flex-col overflow-hidden"
+          >
+            <div className="p-5 pb-4">
+              <div className="text-[17px] font-medium text-gray-900 mb-4">为预设命名</div>
+              <input
+                type="text"
+                value={cotNewName}
+                onChange={e => setCotNewName(e.target.value)}
+                placeholder="请输入预设名称"
+                className="w-full h-10 px-0 border-b border-[#07C160] text-[16px] focus:outline-none"
+                autoFocus
+              />
+            </div>
+            <div className="flex border-t border-gray-100">
+              <button
+                onClick={() => setShowCotNameModal(false)}
+                className="flex-1 py-3 text-[16px] font-medium text-gray-900 active:bg-gray-50 transition-colors border-r border-gray-100"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  const name = cotNewName.trim() || `预设 ${cotPresets.length + 1}`;
+                  const newPreset = { id: Date.now().toString(), name, content: cotDraft.trim() };
+                  const updated = [...cotPresets, newPreset];
+                  setCotPresets(updated);
+                  setSelectedCotPresetId(newPreset.id);
+                  localStorage.setItem(`cot_presets_${friend?.id || 'global'}`, JSON.stringify(updated));
+                  setShowCotNameModal(false);
+                }}
+                className="flex-1 py-3 text-[16px] font-medium text-[#576B95] active:bg-gray-50 transition-colors"
+              >
+                保存
+              </button>
+            </div>
+          </motion.div>
+        </>
+      )}
+
       {showRemarkModal && (
         <>
           <motion.div 
@@ -939,7 +1227,333 @@ const updateSetting = async (key: string, value: any) => {
   );
 };
 
-const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRemark, onDeleteMessages, onEditMessage, walletBalance, setWalletBalance, bankCards, setBankCards, onClearChat, onTriggerAI, isTyping, onUpdateFriend }: { friend: any, myAvatar?: string, messages: any[], onSendMessage: (msg: string, msgType?: string, recalledContent?: string) => void, onBack: () => void, onSetRemark?: (remark: string) => void, onDeleteMessages?: (messageIds: number[]) => void, onEditMessage?: (msgId: number, text: string) => void, walletBalance: number, setWalletBalance: (v: number) => void, bankCards: any[], setBankCards: (cards: any[]) => void, onClearChat?: () => void, onTriggerAI?: () => void, isTyping?: boolean, onUpdateFriend?: (data: any) => void }) => {
+// ─── Token 统计条 + 弹窗组件 ───────────────────────────────────────────────
+const TokenBar = ({ friend, messages, consoleLogs = [], onClearLogs }: { friend: any; messages: any[]; consoleLogs?: string[]; onClearLogs?: () => void }) => {
+  const [showModal, setShowModal] = useState(false);
+  const [consoleOpen, setConsoleOpen] = useState(false);
+  const [consoleViewAll, setConsoleViewAll] = useState(false);
+  const [tokenData, setTokenData] = useState<{
+    aiPersona: number; userPersona: number; worldbook: number;
+    history: number; memory: number; system: number; contextLimit: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const calcTokens = (text: string): number => {
+    if (!text) return 0;
+    const chinese = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || []).length;
+    const remaining = text.replace(/[\u4e00-\u9fff\u3400-\u4dbf]/g, '');
+    const engWords = (remaining.match(/[a-zA-Z]+/g) || []).length;
+    const otherChars = remaining.replace(/[a-zA-Z\s]/g, '').length;
+    return Math.ceil(chinese * 1.5) + Math.ceil(engWords * 0.3) + Math.ceil(otherChars * 0.3);
+  };
+
+  const calcAll = async () => {
+    setLoading(true);
+    try {
+      const contactIdStr = String(friend.id);
+      const settingsRec = await AppDB.appSettings.get(`chat_settings_${friend.id}`);
+      const contextLimit: number = settingsRec?.value?.contextLimit ?? 50;
+      const memoryInjectLimit: number = settingsRec?.value?.memoryInjectLimit ?? 30;
+
+      // 1. AI 人设
+      let aiPersonaText = '';
+      if (friend.mode === 'detailed') {
+        aiPersonaText = [
+          friend.name, friend.gender, friend.age, friend.birthday,
+          friend.identity, friend.personality, friend.appearance,
+          friend.communication_style, friend.lifestyle, friend.background,
+          friend.relationship, friend.nsfw_info, friend.wechatName, friend.wechatId, friend.signature
+        ].filter(Boolean).join(' ');
+      } else {
+        aiPersonaText = [friend.name, friend.bio, friend.wechatName, friend.wechatId, friend.signature].filter(Boolean).join(' ');
+      }
+      const aiPersonaTokens = calcTokens(aiPersonaText) + 800;
+
+      // 2. User 人设
+      const myPersonaRec = await AppDB.appSettings.get('my_persona');
+      const mp = myPersonaRec?.value || {};
+      const userPersonaText = [
+        mp.name, mp.real_name, mp.gender, mp.age, mp.birthday,
+        mp.identity, mp.personality, mp.appearance,
+        mp.communication_style, mp.lifestyle, mp.background, mp.nsfw, mp.wechat_id, mp.signature
+      ].filter(Boolean).join(' ');
+      const userPersonaTokens = calcTokens(userPersonaText);
+
+      // 3. 世界书（基于当前 messages 做关键词匹配）
+      let worldbookText = '';
+      try {
+        const savedBooks = localStorage.getItem('os_worldbooks');
+        if (savedBooks) {
+          let books = JSON.parse(savedBooks);
+          const linkedIds = friend.linked_worldbooks || friend.linkedWorldbooks || null;
+          if (Array.isArray(linkedIds) && linkedIds.length > 0) books = books.filter((wb: any) => linkedIds.includes(wb.id));
+          else if (Array.isArray(linkedIds) && linkedIds.length === 0) books = [];
+          const recentTexts = messages.filter(m => m.text).map(m => m.text.toLowerCase()).join(' ');
+          books.forEach((wb: any) => {
+            if (wb.editMode === 'simple') { if (wb.content) worldbookText += wb.content + ' '; }
+            else if (wb.entries?.length > 0) {
+              wb.entries.forEach((entry: any) => {
+                const keys = entry.keys.split(/[,，]/).map((k: string) => k.trim().toLowerCase()).filter((k: string) => k);
+                if (keys.length > 0 && keys.some((k: string) => recentTexts.includes(k))) worldbookText += entry.content + ' ';
+              });
+            }
+          });
+        }
+      } catch (e) {}
+      const worldbookTokens = calcTokens(worldbookText);
+
+      // 4. 历史消息（按 contextLimit 截取）
+      const allMsgs = await AppDB.messages.where('contactId').equals(contactIdStr).sortBy('fullTimestamp');
+      const historySlice = allMsgs.slice(-contextLimit);
+      const historyTokens = calcTokens(historySlice.map((m: any) => m.text || '').join(' '));
+
+      // 5. 记忆摘要
+      const memories = await AppDB.memories.where('contactId').equals(contactIdStr).toArray();
+      const memSlice = memories.slice(-memoryInjectLimit);
+      const memoryTokens = calcTokens(memSlice.map((m: any) => m.summary || '').join(' '));
+
+      // 6. 系统指令固定开销
+      const systemTokens = 600;
+
+      setTokenData({ aiPersona: aiPersonaTokens, userPersona: userPersonaTokens, worldbook: worldbookTokens, history: historyTokens, memory: memoryTokens, system: systemTokens, contextLimit });
+    } catch (e) { console.error('TokenBar calc error', e); }
+    setLoading(false);
+  };
+
+  const handleOpen = () => { setShowModal(true); calcAll(); };
+
+  const total = tokenData ? tokenData.aiPersona + tokenData.userPersona + tokenData.worldbook + tokenData.history + tokenData.memory + tokenData.system : 0;
+
+  const PIE_COLORS = ['#8673f8', '#f87171', '#34d399', '#60a5fa', '#fbbf24', '#a78bfa'];
+  const PIE_LABELS = ['AI人设', 'User人设', '世界书', '历史消息', '记忆摘要', '系统指令'];
+
+  const buildPiePath = (values: number[], cx: number, cy: number, r: number) => {
+    const sum = values.reduce((a, b) => a + b, 0);
+    if (sum === 0) return [];
+    let angle = -Math.PI / 2;
+    return values.map((v, i) => {
+      const slice = (v / sum) * 2 * Math.PI;
+      const startAngle = angle;
+      angle += slice;
+      const x1 = cx + r * Math.cos(startAngle); const y1 = cy + r * Math.sin(startAngle);
+      const x2 = cx + r * Math.cos(angle); const y2 = cy + r * Math.sin(angle);
+      return { d: `M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${slice > Math.PI ? 1 : 0},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z`, color: PIE_COLORS[i], label: PIE_LABELS[i], value: v, pct: sum > 0 ? ((v / sum) * 100).toFixed(1) : '0' };
+    });
+  };
+
+  const PIE_VALUES = tokenData ? [tokenData.aiPersona, tokenData.userPersona, tokenData.worldbook, tokenData.history, tokenData.memory, tokenData.system] : [];
+
+  const errorCount = consoleLogs.filter(l => l.includes('[ERROR]')).length;
+  const displayedLogs = consoleViewAll
+    ? consoleLogs
+    : consoleLogs.filter(l => l.includes('[ERROR]') || l.includes('[WARN]'));
+
+  const handleCopyLogs = () => {
+    const text = consoleLogs.join('\n');
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+    } else {
+      const el = document.createElement('textarea');
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    }
+  };
+
+  return (
+    <>
+      {/* Console expand panel */}
+      <AnimatePresence>
+        {consoleOpen && (
+          <motion.div
+            key="console-panel"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: 'easeInOut' }}
+            className="overflow-hidden shrink-0"
+            style={{ background: '#1a2035', borderTop: '1px solid rgba(255,255,255,0.07)' }}
+          >
+            {/* Panel header */}
+            <div className="flex items-center justify-between px-4 py-2 border-b border-white/10">
+              <span className="text-[11px] text-white/50">
+                {consoleViewAll ? '全部日志' : '仅显示 warn / error'}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  className="px-2.5 py-0.5 rounded-md text-[11px] font-medium text-white/70 bg-white/10 active:bg-white/20 transition-colors"
+                  onClick={() => setConsoleViewAll(v => !v)}
+                >
+                  {consoleViewAll ? '仅错误' : '查看全部'}
+                </button>
+                <button
+                  className="px-2.5 py-0.5 rounded-md text-[11px] font-medium text-white/70 bg-white/10 active:bg-white/20 transition-colors"
+                  onClick={() => { if (onClearLogs) onClearLogs(); }}
+                >
+                  清空
+                </button>
+                <button
+                  className="px-2.5 py-0.5 rounded-md text-[11px] font-medium text-white/70 bg-white/10 active:bg-white/20 transition-colors"
+                  onClick={handleCopyLogs}
+                >
+                  复制
+                </button>
+              </div>
+            </div>
+            {/* Log body */}
+            <div className="px-4 py-2 max-h-[30vh] overflow-y-auto no-scrollbar">
+              {displayedLogs.length === 0 ? (
+                <p className="text-[11px] text-white/30 py-1">
+                  {consoleViewAll ? '暂无日志。' : '目前没有警告或错误资料。'}
+                </p>
+              ) : (
+                displayedLogs.map((log, i) => (
+                  <div
+                    key={i}
+                    className={`text-[10px] font-mono py-0.5 break-all leading-relaxed ${
+                      log.includes('[ERROR]') ? 'text-red-400' : log.includes('[WARN]') ? 'text-yellow-400' : 'text-white/60'
+                    }`}
+                  >
+                    {log}
+                  </div>
+                ))
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Console toggle bar */}
+      <div
+        className="bg-white border-t border-gray-200 px-4 py-2 shrink-0 flex items-center justify-between cursor-pointer active:bg-gray-50 transition-colors select-none"
+        onClick={() => setConsoleOpen(v => !v)}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] font-medium text-gray-700">查看控制台 (Log/警告/错误)</span>
+          {errorCount > 0 && (
+            <span className="text-[10px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">
+              {errorCount} 错误
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleOpen(); }}
+            className="flex items-center gap-1.5 px-3 py-1 bg-[#8673f8] text-white rounded-full text-[12px] font-medium active:bg-[#7360e0] transition-colors"
+          >
+            <span className="text-[10px]">◐</span>
+            <span>{total > 0 ? total.toLocaleString() : '···'}</span>
+          </button>
+          <svg
+            width="14" height="14" viewBox="0 0 14 14" fill="none"
+            className={`text-gray-400 transition-transform duration-200 ${consoleOpen ? 'rotate-180' : ''}`}
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path d="M2 5l5 5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {showModal && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowModal(false)} className="fixed inset-0 bg-black/50 z-[150]" />
+            <motion.div
+              initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }}
+              transition={{ type: 'spring', damping: 26, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 z-[160] bg-white rounded-t-[20px] shadow-[0_-4px_24px_rgba(0,0,0,0.15)] flex flex-col max-h-[80vh]"
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[17px] font-medium text-gray-800">Token 预估</span>
+                  <span className="text-[12px] text-[#8673f8] bg-[#f0edff] px-2 py-0.5 rounded-full font-medium">下一轮 AI 输入</span>
+                </div>
+                <button onClick={() => setShowModal(false)} className="text-gray-400 active:text-gray-600 p-1 -mr-1"><X size={18} strokeWidth={2} /></button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-5 py-4 no-scrollbar">
+                {loading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="w-8 h-8 border-2 border-[#8673f8] border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : tokenData ? (
+                  <>
+                    <div className="text-center mb-6">
+                      <span className="text-[36px] font-bold text-[#8673f8] tracking-tight">{total.toLocaleString()}</span>
+                      <span className="text-[14px] text-gray-400 ml-1">tokens</span>
+                    </div>
+
+                    {total > 0 && (() => {
+                      const slices = buildPiePath(PIE_VALUES, 90, 90, 80);
+                      return (
+                        <div className="flex items-center gap-4 mb-6">
+                          <svg width="180" height="180" className="shrink-0">
+                            {slices.map((s, i) => <path key={i} d={s.d} fill={s.color} stroke="white" strokeWidth="1.5" />)}
+                            <circle cx="90" cy="90" r="40" fill="white" />
+                            <text x="90" y="86" textAnchor="middle" fontSize="11" fill="#888" fontWeight="500">总计</text>
+                            <text x="90" y="100" textAnchor="middle" fontSize="13" fill="#333" fontWeight="700">{total > 9999 ? (total / 1000).toFixed(1) + 'k' : total}</text>
+                          </svg>
+                          <div className="flex flex-col gap-2 flex-1">
+                            {slices.map((s, i) => (
+                              <div key={i} className="flex items-center gap-2">
+                                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color }} />
+                                <span className="text-[12px] text-gray-600 flex-1">{s.label}</span>
+                                <span className="text-[11px] text-gray-400 font-mono">{s.pct}%</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <div className="flex flex-col gap-2">
+                      {[
+                        { label: 'AI 人设', value: tokenData.aiPersona, color: PIE_COLORS[0], desc: '角色设定 + prompt 框架' },
+                        { label: 'User 人设', value: tokenData.userPersona, color: PIE_COLORS[1], desc: '用户档案信息' },
+                        { label: '世界书', value: tokenData.worldbook, color: PIE_COLORS[2], desc: '关联世界书内容' },
+                        { label: '历史消息', value: tokenData.history, color: PIE_COLORS[3], desc: `上下文 ${tokenData.contextLimit} 条` },
+                        { label: '记忆摘要', value: tokenData.memory, color: PIE_COLORS[4], desc: '注入的记忆片段' },
+                        { label: '系统指令', value: tokenData.system, color: PIE_COLORS[5], desc: '格式 / 模式指令' },
+                      ].map((item, i) => (
+                        <div key={i} className="flex items-center gap-3 bg-gray-50 rounded-[10px] px-3 py-2.5">
+                          <div className="w-3 h-3 rounded-full shrink-0" style={{ background: item.color }} />
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <span className="text-[14px] font-medium text-gray-800">{item.label}</span>
+                            <span className="text-[11px] text-gray-400">{item.desc}</span>
+                          </div>
+                          <div className="flex flex-col items-end shrink-0">
+                            <span className="text-[15px] font-bold text-gray-800">{item.value.toLocaleString()}</span>
+                            <span className="text-[10px] text-gray-400">{total > 0 ? ((item.value / total) * 100).toFixed(1) : 0}%</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <p className="text-[11px] text-gray-400 text-center mt-4 leading-relaxed">
+                      估算规则：中文字 ×1.5 / 英文单词 ×0.3 / 其他字符 ×0.3<br/>实际消耗以模型 API 返回为准
+                    </p>
+                  </>
+                ) : (
+                  <div className="text-center py-10 text-gray-400 text-[14px]">计算失败，请重试</div>
+                )}
+              </div>
+
+              <div className="px-5 pb-8 pt-2 shrink-0">
+                <button onClick={() => { setTokenData(null); calcAll(); }} className="w-full py-3 bg-[#8673f8] text-white rounded-[12px] text-[15px] font-medium active:bg-[#7360e0] transition-colors">
+                  重新计算
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </>
+  );
+};
+
+const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRemark, onDeleteMessages, onEditMessage, walletBalance, setWalletBalance, bankCards, setBankCards, onClearChat, onTriggerAI, isTyping, onUpdateFriend, consoleLogs, onClearConsoleLogs }: { friend: any, myAvatar?: string, messages: any[], onSendMessage: (msg: string, msgType?: string, recalledContent?: string) => void, onBack: () => void, onSetRemark?: (remark: string) => void, onDeleteMessages?: (messageIds: number[]) => void, onEditMessage?: (msgId: number, text: string) => void, walletBalance: number, setWalletBalance: (v: number) => void, bankCards: any[], setBankCards: (cards: any[]) => void, onClearChat?: () => void, onTriggerAI?: () => void, isTyping?: boolean, onUpdateFriend?: (data: any) => void, consoleLogs?: string[], onClearConsoleLogs?: () => void }) => {
   const [inputText, setInputText] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [actionMenuMsg, setActionMenuMsg] = useState<any | null>(null);
@@ -960,8 +1574,14 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [showMindCardSetting, setShowMindCardSetting] = useState(false);
   const [viewingMindCard, setViewingMindCard] = useState<any | null>(null);
+  const [showConsoleAndTokenSetting, setShowConsoleAndTokenSetting] = useState(false);
+  const [useCoTSetting, setUseCoTSetting] = useState(false);
+  const [showCotDisplaySetting, setShowCotDisplaySetting] = useState(false);
+  const [viewingCotContent, setViewingCotContent] = useState<string | null>(null);
   const [transferActionMsg, setTransferActionMsg] = useState<any | null>(null);
   const chatAreaRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const visionFileInputRef = useRef<HTMLInputElement>(null);
 
   const [bubbleFontSize, setBubbleFontSize] = useState(15);
   const [bubbleColor, setBubbleColor] = useState('');
@@ -1033,7 +1653,10 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
     if (friend?.id) {
        AppDB.appSettings.get(`chat_settings_${friend.id}`).then(record => {
          if (record && record.value) {
+           if (record.value.showConsoleAndToken !== undefined) setShowConsoleAndTokenSetting(record.value.showConsoleAndToken);
            if (record.value.showMindCard !== undefined) setShowMindCardSetting(record.value.showMindCard);
+           if (record.value.useCoT !== undefined) setUseCoTSetting(record.value.useCoT);
+           if (record.value.showCotDisplay !== undefined) setShowCotDisplaySetting(record.value.showCotDisplay);
            if (record.value.bubbleFontSize !== undefined) setBubbleFontSize(record.value.bubbleFontSize);
            if (record.value.bubbleColor !== undefined) setBubbleColor(record.value.bubbleColor);
            if (record.value.aiNarratorFontSize !== undefined) setAiNarratorFontSize(record.value.aiNarratorFontSize);
@@ -1248,11 +1871,66 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
           </div>
         )}
         {(() => {
-          let lastAiMsgIdx = -1;
+          // 寻找最后一条AI消息（含有心声卡片的优先，否则取最后一条非narrator的AI消息）
+          // 解析 AI 回复中的 <thinking>...</thinking>（支持多种格式）
+          const extractCotContent = (text: string): string | null => {
+            if (!text) return null;
+            // 标准 <thinking>...</thinking>
+            const m1 = text.match(/<thinking>([\s\S]*?)<\/thinking>/i);
+            if (m1) return m1[1].trim();
+            // [THINK]...[/THINK]
+            const m2 = text.match(/\[THINK\]([\s\S]*?)\[\/THINK\]/i);
+            if (m2) return m2[1].trim();
+            return null;
+          };
+
+          // 找最后一条 AI 消息：优先含 <thinking> 的，否则取最后一条非 narrator/system 的 AI 消息
+          let lastAiCotMsgIdx = -1;
+          let lastAiCotContent: string | null = null;
           for (let i = messages.length - 1; i >= 0; i--) {
-            if (!messages[i].isMe && messages[i].msgType !== 'narrator') {
-              lastAiMsgIdx = i;
-              break;
+            const m = messages[i];
+            if (!m.isMe && m.msgType !== 'system') {
+              const cot = extractCotContent(m.text || '');
+              if (cot) {
+                lastAiCotMsgIdx = i;
+                lastAiCotContent = cot;
+                break;
+              }
+              // 没有 <thinking> 内容，但仍标记为候选（仅当没找到更好的时）
+              if (lastAiCotMsgIdx === -1) {
+                lastAiCotMsgIdx = i;
+                lastAiCotContent = m.text || '';
+              }
+            }
+          }
+
+          let lastAiMsgIdx = -1;
+          // 先尝试找最后一条有mindCard数据或含有[MIND_CARD]标记的AI消息
+          for (let i = messages.length - 1; i >= 0; i--) {
+            if (!messages[i].isMe) {
+              const text = messages[i].text || '';
+              if (messages[i].mindCard || /\[MIND_CARD\]/.test(text)) {
+                lastAiMsgIdx = i;
+                break;
+              }
+            }
+          }
+          // 如果没找到含心声的，再找最后一条非narrator的AI消息
+          if (lastAiMsgIdx === -1) {
+            for (let i = messages.length - 1; i >= 0; i--) {
+              if (!messages[i].isMe && messages[i].msgType !== 'narrator') {
+                lastAiMsgIdx = i;
+                break;
+              }
+            }
+          }
+          // 如果仍然没找到（纯线下模式全是narrator），找最后一条AI消息
+          if (lastAiMsgIdx === -1) {
+            for (let i = messages.length - 1; i >= 0; i--) {
+              if (!messages[i].isMe && messages[i].msgType !== 'system') {
+                lastAiMsgIdx = i;
+                break;
+              }
             }
           }
           return messages.map((msg, idx) => {
@@ -1358,9 +2036,12 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                 }
             });
 
+            // 判断此条消息是否是含 <thinking> 的最后一条 AI 消息
+            const isCotMsg = useCoTSetting && !msg.isMe && idx === lastAiCotMsgIdx && lastAiCotContent;
+
             return (
-              <div 
-                 key={idx} 
+              <div
+                 key={idx}
                  className="flex flex-col w-full relative mb-1"
                  onClick={() => {
                    if (isMultiSelecting) {
@@ -1379,7 +2060,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                      </div>
                    </div>
                 )}
-                
+
                 {groups.map((group, gIdx) => {
                     const isLastGroup = gIdx === groups.length - 1;
                     if (group.type === 'narrator') {
@@ -1530,7 +2211,19 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                             <div className={`max-w-[70%] flex flex-col gap-2 ${msg.isMe ? 'items-end' : 'items-start'}`}>
                                {group.parts.map((p: any, pIdx: number) => {
                                   const showDot = showMindCardSetting && idx === lastAiMsgIdx && extractedMindCard && isLastGroup && pIdx === group.parts.length - 1;
+                                  const showCotBubble = !msg.isMe && isCotMsg && showCotDisplaySetting && isLastGroup && pIdx === group.parts.length - 1;
                                   return (
+                                     <>
+                                     {showCotBubble && (
+                                       <button
+                                        onClick={() => setViewingCotContent(lastAiCotContent)}
+                                        className="flex items-center gap-1 px-2.5 py-1 bg-white rounded-[14px] text-[12px] text-gray-400 active:bg-gray-100 transition-colors shadow-sm border border-gray-100 select-none mb-1 self-start"
+                                       >
+                                        <span className="text-[10px]">▷</span>
+                                        <span className="text-[10px] opacity-60">↺</span>
+                                        <span>思维链</span>
+                                       </button>
+                                     )}
                                      <div 
                                        key={pIdx}
                                        className={`relative px-4 py-2.5 w-fit rounded-[10px] text-[15px] ${msg.isMe ? 'bg-[#95EC69] text-black' : 'bg-white text-gray-800'} break-words select-none ${isMultiSelecting ? '' : 'cursor-pointer active:brightness-95'}`}
@@ -1552,8 +2245,13 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                                       {showDot && (
                                          <div className="absolute top-0 right-0 -mt-1 -mr-1 w-2.5 h-2.5 bg-pink-400 rounded-full shadow-[0_0_0_1.5px_white] z-10" />
                                       )}
-                                      <span className="whitespace-pre-wrap">{p.text}</span>
+                                      {msg.msgType === 'image' ? (
+                                        <img src={msg.text} alt="图片消息" className="inner-bubble-image" />
+                                      ) : (
+                                        <span className="whitespace-pre-wrap">{p.text}</span>
+                                      )}
                                     </div>
+                                     </>
                                   );
                                })}
                                {quoteInfo && gIdx === groups.length - 1 && (
@@ -1577,6 +2275,10 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
           })
         })()}
       </div>
+
+      {showConsoleAndTokenSetting && !isMultiSelecting && (
+        <TokenBar friend={friend} messages={messages} consoleLogs={consoleLogs} onClearLogs={onClearConsoleLogs} />
+      )}
 
       {/* Input Area / Multi-Select Bottom Bar */}
       {isMultiSelecting ? (
@@ -1621,7 +2323,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                   className="absolute bottom-full w-full left-0 px-3 pb-2 z-20"
                 >
                   <div className="bg-white rounded-[20px] p-6 shadow-[0_2px_15px_rgba(0,0,0,0.08)] border border-gray-100">
-                    <div className="grid grid-cols-4 gap-y-6">
+                    <div className="grid grid-cols-5 gap-y-5 px-1">
                       <button 
                          onClick={() => {
                            if (!offlineStartTime) {
@@ -1636,12 +2338,12 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                            }
                            setShowPluginPanel(false);
                          }}
-                         className="flex flex-col items-center gap-2"
+                         className="flex flex-col items-center gap-1.5"
                       >
-                         <div className="w-14 h-14 bg-[#f4f5f7] rounded-[16px] flex items-center justify-center active:bg-gray-200 transition-colors">
-                           <MapPin className="text-[#64748b]" size={26} strokeWidth={1.5} />
+                         <div className="w-10 h-10 bg-[#f4f5f7] rounded-[14px] flex items-center justify-center active:bg-gray-200 transition-colors">
+                           <MapPin className="text-[#64748b]" size={20} strokeWidth={1.5} />
                          </div>
-                         <span className="text-[12px] text-gray-500 font-medium">线下</span>
+                         <span className="text-[11px] text-gray-500 font-medium">线下</span>
                       </button>
                       <button 
                          onClick={() => {
@@ -1650,12 +2352,12 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                            setMoneyTitle('');
                            setShowTransferModal(true);
                          }}
-                         className="flex flex-col items-center gap-2"
+                         className="flex flex-col items-center gap-1.5"
                       >
-                         <div className="w-14 h-14 bg-[#f4f5f7] rounded-[16px] flex items-center justify-center active:bg-gray-200 transition-colors">
-                           <ArrowRightLeft className="text-[#64748b]" size={26} strokeWidth={1.5} />
+                         <div className="w-10 h-10 bg-[#f4f5f7] rounded-[14px] flex items-center justify-center active:bg-gray-200 transition-colors">
+                           <ArrowRightLeft className="text-[#64748b]" size={20} strokeWidth={1.5} />
                          </div>
-                         <span className="text-[12px] text-gray-500 font-medium">转账</span>
+                         <span className="text-[11px] text-gray-500 font-medium">转账</span>
                       </button>
                       <button 
                          onClick={() => {
@@ -1664,12 +2366,12 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                            setMoneyTitle('');
                            setShowRedPacketModal(true);
                          }}
-                         className="flex flex-col items-center gap-2"
+                         className="flex flex-col items-center gap-1.5"
                       >
-                         <div className="w-14 h-14 bg-[#f4f5f7] rounded-[16px] flex items-center justify-center active:bg-gray-200 transition-colors">
-                           <Gift className="text-[#64748b]" size={26} strokeWidth={1.5} />
+                         <div className="w-10 h-10 bg-[#f4f5f7] rounded-[14px] flex items-center justify-center active:bg-gray-200 transition-colors">
+                           <Gift className="text-[#64748b]" size={20} strokeWidth={1.5} />
                          </div>
-                         <span className="text-[12px] text-gray-500 font-medium">红包</span>
+                         <span className="text-[11px] text-gray-500 font-medium">红包</span>
                       </button>
                       <button 
                         onClick={() => {
@@ -1679,23 +2381,23 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                         }}
                         className="flex flex-col items-center gap-1.5"
                       >
-                        <div className="w-14 h-14 bg-[#f4f5f7] rounded-[16px] flex items-center justify-center active:bg-gray-200 transition-colors">
-                          <ImageIcon className="text-[#64748b]" size={26} strokeWidth={1.5} />
+                        <div className="w-10 h-10 bg-[#f4f5f7] rounded-[14px] flex items-center justify-center active:bg-gray-200 transition-colors">
+                          <ImageIcon className="text-[#64748b]" size={20} strokeWidth={1.5} />
                         </div>
-                        <span className="text-[12px] text-gray-500 font-medium">相册</span>
+                        <span className="text-[11px] text-gray-500 font-medium">相册</span>
                       </button>
 
                       <button 
                         onClick={() => {
-                          onSendMessage('[拍照]', 'system');
                           setShowPluginPanel(false);
+                          visionFileInputRef.current?.click();
                         }}
                         className="flex flex-col items-center gap-1.5"
                       >
-                        <div className="w-14 h-14 bg-[#f4f5f7] rounded-[16px] flex items-center justify-center active:bg-gray-200 transition-colors">
-                          <Camera className="text-[#64748b]" size={26} strokeWidth={1.5} />
+                        <div className="w-10 h-10 bg-[#f4f5f7] rounded-[14px] flex items-center justify-center active:bg-gray-200 transition-colors">
+                          <Camera className="text-[#64748b]" size={20} strokeWidth={1.5} />
                         </div>
-                        <span className="text-[12px] text-gray-500 font-medium">拍照</span>
+                        <span className="text-[11px] text-gray-500 font-medium">拍照</span>
                       </button>
                       <button 
                          onClick={() => {
@@ -1709,12 +2411,12 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                            });
                            setShowWorldbookSelect(true);
                          }}
-                         className="flex flex-col items-center gap-2"
+                         className="flex flex-col items-center gap-1.5"
                       >
-                         <div className="w-14 h-14 bg-[#f4f5f7] rounded-[16px] flex items-center justify-center active:bg-gray-200 transition-colors">
-                           <Folder className="text-[#64748b]" size={26} strokeWidth={1.5} />
+                         <div className="w-10 h-10 bg-[#f4f5f7] rounded-[14px] flex items-center justify-center active:bg-gray-200 transition-colors">
+                           <Folder className="text-[#64748b]" size={20} strokeWidth={1.5} />
                          </div>
-                         <span className="text-[12px] text-gray-500 font-medium">速切世界书</span>
+                         <span className="text-[11px] text-gray-500 font-medium">速切世界书</span>
                       </button>
                       <button 
                          onClick={() => {
@@ -1736,12 +2438,84 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                                setTimeout(() => onTriggerAI!(), 100);
                            }
                          }}
-                         className="flex flex-col items-center gap-2"
+                         className="flex flex-col items-center gap-1.5"
                       >
-                         <div className="w-14 h-14 bg-[#f4f5f7] rounded-[16px] flex items-center justify-center active:bg-gray-200 transition-colors">
-                           <RefreshCcw className="text-[#64748b]" size={26} strokeWidth={1.5} />
+                         <div className="w-10 h-10 bg-[#f4f5f7] rounded-[14px] flex items-center justify-center active:bg-gray-200 transition-colors">
+                           <RefreshCcw className="text-[#64748b]" size={20} strokeWidth={1.5} />
                          </div>
-                         <span className="text-[12px] text-gray-500 font-medium">重回</span>
+                         <span className="text-[11px] text-gray-500 font-medium">重回</span>
+                      </button>
+                      <button 
+                         onClick={() => {
+                           setShowPluginPanel(false);
+                           onSendMessage('「发起了语音通话」', 'system');
+                         }}
+                         className="flex flex-col items-center gap-1.5"
+                      >
+                         <div className="w-10 h-10 bg-[#f4f5f7] rounded-[14px] flex items-center justify-center active:bg-gray-200 transition-colors">
+                           <Mic className="text-[#64748b]" size={20} strokeWidth={1.5} />
+                         </div>
+                         <span className="text-[11px] text-gray-500 font-medium">语音</span>
+                      </button>
+                      <button 
+                         onClick={() => {
+                           setShowPluginPanel(false);
+                           onSendMessage('「发起了视频通话」', 'system');
+                         }}
+                         className="flex flex-col items-center gap-1.5"
+                      >
+                         <div className="w-10 h-10 bg-[#f4f5f7] rounded-[14px] flex items-center justify-center active:bg-gray-200 transition-colors">
+                           <Video className="text-[#64748b]" size={20} strokeWidth={1.5} />
+                         </div>
+                         <span className="text-[11px] text-gray-500 font-medium">视频</span>
+                      </button>
+                      <button 
+                         onClick={() => {
+                           setShowPluginPanel(false);
+                           onSendMessage('「拨打了电话」', 'system');
+                         }}
+                         className="flex flex-col items-center gap-1.5"
+                      >
+                         <div className="w-10 h-10 bg-[#f4f5f7] rounded-[14px] flex items-center justify-center active:bg-gray-200 transition-colors">
+                           <Phone className="text-[#64748b]" size={20} strokeWidth={1.5} />
+                         </div>
+                         <span className="text-[11px] text-gray-500 font-medium">电话</span>
+                      </button>
+                      <button 
+                         onClick={() => {
+                           setShowPluginPanel(false);
+                           onSendMessage('「进入了梦境」', 'system');
+                         }}
+                         className="flex flex-col items-center gap-1.5"
+                      >
+                         <div className="w-10 h-10 bg-[#f4f5f7] rounded-[14px] flex items-center justify-center active:bg-gray-200 transition-colors">
+                           <CloudMoon className="text-[#64748b]" size={20} strokeWidth={1.5} />
+                         </div>
+                         <span className="text-[11px] text-gray-500 font-medium">梦境</span>
+                      </button>
+                      <button 
+                         onClick={() => {
+                           setShowPluginPanel(false);
+                           onSendMessage('「发送了位置」', 'system');
+                         }}
+                         className="flex flex-col items-center gap-1.5"
+                      >
+                         <div className="w-10 h-10 bg-[#f4f5f7] rounded-[14px] flex items-center justify-center active:bg-gray-200 transition-colors">
+                           <Navigation className="text-[#64748b]" size={20} strokeWidth={1.5} />
+                         </div>
+                         <span className="text-[11px] text-gray-500 font-medium">位置</span>
+                      </button>
+                      <button 
+                         onClick={() => {
+                           setShowPluginPanel(false);
+                           onSendMessage('「打开了衣帽间」', 'system');
+                         }}
+                         className="flex flex-col items-center gap-1.5"
+                      >
+                         <div className="w-10 h-10 bg-[#f4f5f7] rounded-[14px] flex items-center justify-center active:bg-gray-200 transition-colors">
+                           <Shirt className="text-[#64748b]" size={20} strokeWidth={1.5} />
+                         </div>
+                         <span className="text-[11px] text-gray-500 font-medium">衣帽间</span>
                       </button>
                     </div>
                   </div>
@@ -1766,6 +2540,55 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                 reader.readAsDataURL(file);
               }
               e.target.value = '';
+            }}
+          />
+
+          {/* 隐藏的视觉识图文件输入 */}
+          <input
+            type="file"
+            accept="image/png, image/jpeg"
+            ref={visionFileInputRef}
+            style={{ display: 'none' }}
+            onChange={async (e) => {
+              const files = e.target.files;
+              if (!files || files.length === 0) return;
+              const file = files[0];
+              try {
+                // 统一压缩为 JPEG 格式，避免 MIME type 不匹配（PNG 前缀 + JPEG 内容）
+                const compressedBase64 = await compressImage(file, {
+                  maxWidth: 800,
+                  maxHeight: 800,
+                  quality: 0.6,
+                  outputType: 'image/jpeg',
+                });
+                // 聊天界面展示和传给 AI 都使用压缩后的 JPEG base64
+                onSendMessage(compressedBase64, 'image');
+                console.log('[Vision] 压缩后长度:', compressedBase64.length);
+
+                // 读取用户配置的 API 信息（优先从全局设置读取）
+                const apiUrl = (localStorage.getItem('os_api_url') || '').trim();
+                const apiKey = (localStorage.getItem('os_api_key') || '').trim();
+                const model = (localStorage.getItem('os_api_model') || '').trim();
+
+                // 调用视觉识别接口（使用压缩后的图片）
+                const result = await analyzeImage(compressedBase64, {
+                  prompt: '请用中文描述这张图片的内容',
+                  apiUrl: apiUrl || undefined,
+                  apiKey: apiKey || undefined,
+                  model: model || undefined,
+                });
+
+                // 将 AI 识别结果作为对方的回复消息
+                onSendMessage(result, 'text');
+              } catch (err: any) {
+                console.error('Vision analysis failed:', err);
+                onSendMessage(`[图片识别失败: ${err?.message || '未知错误'}]`, 'system');
+              } finally {
+                // 清空 input 状态以便下次选择
+                if (visionFileInputRef.current) {
+                  visionFileInputRef.current.value = '';
+                }
+              }
             }}
           />
 
@@ -1803,9 +2626,18 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
               </div>
             )}
             <textarea 
+              ref={textareaRef}
               placeholder={isNarratorMode ? "请输入旁白..." : "请输入消息..."}
               value={inputText}
-              onChange={e => setInputText(e.target.value)}
+              onChange={e => {
+                setInputText(e.target.value);
+                // 自动调整高度
+                const el = textareaRef.current;
+                if (el) {
+                  el.style.height = 'auto';
+                  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+                }
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -1829,11 +2661,16 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                     onSendMessage(finalText, isNarratorMode ? 'narrator' : 'text');
                     setInputText('');
                     setQuotedMessage(null);
+                    // 发送后重置高度
+                    const el = textareaRef.current;
+                    if (el) {
+                      el.style.height = 'auto';
+                    }
                   }
                 }
               }}
               rows={1}
-              style={{ minHeight: '24px', maxHeight: '100px' }}
+              style={{ minHeight: '24px', maxHeight: '120px', overflow: 'auto' }}
               className="w-full text-[15px] bg-transparent outline-none resize-none leading-[24px]"
             />
           </div>
@@ -1889,6 +2726,46 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
       )}
     </motion.div>
     <AnimatePresence>
+      {viewingCotContent !== null && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setViewingCotContent(null)}
+            className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-[90]"
+          />
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 40 }}
+            transition={{ type: 'spring', damping: 26, stiffness: 300 }}
+            className="fixed bottom-0 left-0 right-0 z-[100] bg-white rounded-t-[20px] shadow-[0_-4px_24px_rgba(0,0,0,0.12)] flex flex-col max-h-[75vh]"
+          >
+            {/* 标题栏 */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+              <button
+                onClick={() => setViewingCotContent(null)}
+                className="flex items-center gap-1.5 text-[14px] text-gray-500 active:text-gray-700"
+              >
+                <span className="text-[12px]">▼</span>
+                <span className="text-[12px] opacity-60">↺</span>
+                <span>隐藏思维链</span>
+              </button>
+              <button onClick={() => setViewingCotContent(null)} className="text-gray-400 active:text-gray-600 p-1 -mr-1">
+                <X size={18} strokeWidth={2} />
+              </button>
+            </div>
+            {/* 内容区 */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 no-scrollbar">
+              <p className="text-[14px] text-gray-700 leading-relaxed whitespace-pre-wrap break-words">
+                {viewingCotContent}
+              </p>
+            </div>
+          </motion.div>
+        </>
+      )}
+
       {viewingMindCard && (
         <>
           <motion.div 
@@ -1948,6 +2825,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
             if (onClearChat) onClearChat();
             setShowSettings(false);
           }}
+          onShowCotDisplayChange={(val) => setShowCotDisplaySetting(val)}
         />
       )}
     </AnimatePresence>
@@ -2675,7 +3553,9 @@ const WechatScreen = ({
   onClearChat,
   onTriggerAI,
   isTyping,
-  onUpdateFriend
+  onUpdateFriend,
+  consoleLogs,
+  onClearConsoleLogs,
 }: { 
   onBack: () => void;
   requests: any[];
@@ -2694,6 +3574,8 @@ const WechatScreen = ({
   onTriggerAI?: (friendId: string) => void;
   isTyping?: Record<string, boolean>;
   onUpdateFriend?: (friendId: string, data: any) => void;
+  consoleLogs?: string[];
+  onClearConsoleLogs?: () => void;
   key?: React.Key;
 }) => {
   const [showPayScreen, setShowPayScreen] = useState(false);
@@ -3111,6 +3993,8 @@ const WechatScreen = ({
               if (onUpdateFriend) onUpdateFriend(activeChatFriend.id, data);
               setActiveChatFriend(prev => prev ? { ...prev, ...data } : prev);
             }}
+            consoleLogs={consoleLogs}
+            onClearConsoleLogs={onClearConsoleLogs}
           />
         )}
       </AnimatePresence>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Moon, Signal, Wifi, Battery, ChevronLeft, Download, Upload, Menu, ChevronDown, Plus, X, Trash2, Check } from 'lucide-react';
+import { Moon, Signal, Wifi, Battery, ChevronLeft, Download, Upload, Menu, ChevronDown, Plus, X, Trash2, Check, ChevronRight } from 'lucide-react';
 import { CurrentTime } from '../components';
 
 interface WorldbookEntry {
@@ -173,6 +173,19 @@ export const WorldbookApp = ({ onBack, key }: { onBack: () => void, key?: React.
   const [createName, setCreateName] = useState('');
   const [editingBook, setEditingBook] = useState<Worldbook | null>(null);
 
+  // 分类管理状态
+  const [categories, setCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('os_worldbook_categories');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return ['总是', '世界观', '角色库', '规则'];
+  });
+  const [showCategoryPanel, setShowCategoryPanel] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  // 分类折叠状态：key=分类名, value=是否展开
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -181,6 +194,48 @@ export const WorldbookApp = ({ onBack, key }: { onBack: () => void, key?: React.
   useEffect(() => {
     localStorage.setItem('os_worldbooks', JSON.stringify(books));
   }, [books]);
+
+  useEffect(() => {
+    localStorage.setItem('os_worldbook_categories', JSON.stringify(categories));
+  }, [categories]);
+
+  const saveCategories = (newCats: string[]) => {
+    setCategories(newCats);
+    localStorage.setItem('os_worldbook_categories', JSON.stringify(newCats));
+  };
+
+  const handleAddCategory = () => {
+    const name = newCategoryName.trim();
+    if (!name || categories.includes(name)) return;
+    saveCategories([...categories, name]);
+    setNewCategoryName('');
+  };
+
+  const handleDeleteCategory = (cat: string) => {
+    saveCategories(categories.filter(c => c !== cat));
+    // 将使用该分类的世界书重置为未分类
+    const updated = books.map(b => b.category === cat ? { ...b, category: '未分类' } : b);
+    saveBooks(updated);
+  };
+
+  const toggleCategory = (cat: string) => {
+    setExpandedCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
+  };
+
+  // 按分类分组世界书（包含"未分类"兜底）
+  const groupedBooks = () => {
+    const allCats = ['未分类', ...categories];
+    const groups: { cat: string; items: Worldbook[] }[] = [];
+    allCats.forEach(cat => {
+      const items = books.filter(b => {
+        const bc = b.category || '';
+        if (cat === '未分类') return !bc || !categories.includes(bc);
+        return bc === cat;
+      });
+      if (items.length > 0) groups.push({ cat, items });
+    });
+    return groups;
+  };
 
   const saveBooks = (newBooks: Worldbook[]) => {
     setBooks(newBooks);
@@ -320,7 +375,7 @@ export const WorldbookApp = ({ onBack, key }: { onBack: () => void, key?: React.
               </span>
 
               <div className="flex items-center gap-2 lg:gap-3 shrink-0">
-                <button className="p-1.5 text-gray-700 active:bg-gray-100 rounded-full transition-colors">
+                <button onClick={() => setShowCategoryPanel(true)} className="p-1.5 text-gray-700 active:bg-gray-100 rounded-full transition-colors">
                   <Menu size={20} strokeWidth={1.5} />
                 </button>
                 <button className="p-1.5 text-gray-700 active:bg-gray-100 rounded-full transition-colors">
@@ -346,46 +401,80 @@ export const WorldbookApp = ({ onBack, key }: { onBack: () => void, key?: React.
                 <span className="text-[13px] text-[#cccccc] font-light tracking-wider">点击右上角+号创建</span>
               </div>
             ) : (
-              <div className="p-4 flex flex-col gap-3">
-                {books.map(book => {
-                  const isSelected = selectedIds.includes(book.id);
+              <div className="p-4 flex flex-col gap-4">
+                {groupedBooks().map(({ cat, items }) => {
+                  const isExpanded = expandedCategories[cat] !== false; // 默认展开
                   return (
-                    <div 
-                      key={book.id} 
-                      onPointerDown={() => handlePointerDown(book.id)}
-                      onPointerUp={cancelLongPress}
-                      onPointerCancel={cancelLongPress}
-                      onMouseLeave={cancelLongPress}
-                      onClick={() => {
-                        if (selectionMode) {
-                          setSelectedIds(prev => prev.includes(book.id) ? prev.filter(id => id !== book.id) : [...prev, book.id]);
-                        } else {
-                          setEditingBook(book); setCurrentView('edit');
-                        }
-                      }}
-                      className={`bg-white p-4 rounded-[16px] shadow-[0_2px_8px_rgba(0,0,0,0.04)] border flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer relative overflow-hidden ${selectionMode && isSelected ? 'border-gray-800 ring-[1.5px] ring-gray-800' : 'border-gray-100'}`}
-                    >
-                      <div className="flex flex-col flex-1 pl-1">
-                        <span className="text-[16px] font-medium text-gray-900 mb-1 line-clamp-1">{book.name}</span>
-                        <div className="flex flex-row items-center">
-                          <span className="text-[13px] text-gray-500">{book.editMode === 'simple' ? 1 : book.entries.length}个条目 · </span>
-                          <span className="text-[12px] text-gray-400 ml-1">
-                            {new Date(parseInt(book.id.split('_')[1] || Date.now().toString())).toLocaleDateString('zh-CN', {month: 'numeric', day: 'numeric'})}
-                          </span>
+                    <div key={cat} className="flex flex-col gap-2">
+                      {/* 分类标题行 */}
+                      <button
+                        onClick={() => toggleCategory(cat)}
+                        className="flex items-center justify-between px-1 py-1 active:opacity-70 transition-opacity"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] font-semibold text-gray-500 tracking-wide uppercase">{cat}</span>
+                          <span className="text-[12px] text-gray-400">{items.length}</span>
                         </div>
-                      </div>
+                        <ChevronRight
+                          size={16}
+                          className={`text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
+                        />
+                      </button>
 
-                      {selectionMode && (
-                        <div className="ml-4 shrink-0 pr-1">
-                          {isSelected ? (
-                            <div className="w-[22px] h-[22px] rounded-full bg-[#333] flex items-center justify-center">
-                              <Check size={14} className="text-white" strokeWidth={3} />
-                            </div>
-                          ) : (
-                            <div className="w-[22px] h-[22px] rounded-full border-[1.5px] border-gray-300" />
-                          )}
-                        </div>
-                      )}
+                      {/* 该分类下的世界书卡片 */}
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                            className="flex flex-col gap-2 overflow-hidden"
+                          >
+                            {items.map(book => {
+                              const isSelected = selectedIds.includes(book.id);
+                              return (
+                                <div
+                                  key={book.id}
+                                  onPointerDown={() => handlePointerDown(book.id)}
+                                  onPointerUp={cancelLongPress}
+                                  onPointerCancel={cancelLongPress}
+                                  onMouseLeave={cancelLongPress}
+                                  onClick={() => {
+                                    if (selectionMode) {
+                                      setSelectedIds(prev => prev.includes(book.id) ? prev.filter(id => id !== book.id) : [...prev, book.id]);
+                                    } else {
+                                      setEditingBook(book); setCurrentView('edit');
+                                    }
+                                  }}
+                                  className={`bg-white p-4 rounded-[16px] shadow-[0_2px_8px_rgba(0,0,0,0.04)] border flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer relative overflow-hidden ${selectionMode && isSelected ? 'border-gray-800 ring-[1.5px] ring-gray-800' : 'border-gray-100'}`}
+                                >
+                                  <div className="flex flex-col flex-1 pl-1">
+                                    <span className="text-[16px] font-medium text-gray-900 mb-1 line-clamp-1">{book.name}</span>
+                                    <div className="flex flex-row items-center">
+                                      <span className="text-[13px] text-gray-500">{book.editMode === 'simple' ? 1 : book.entries.length}个条目 · </span>
+                                      <span className="text-[12px] text-gray-400 ml-1">
+                                        {new Date(parseInt(book.id.split('_')[1] || Date.now().toString())).toLocaleDateString('zh-CN', {month: 'numeric', day: 'numeric'})}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  {selectionMode && (
+                                    <div className="ml-4 shrink-0 pr-1">
+                                      {isSelected ? (
+                                        <div className="w-[22px] h-[22px] rounded-full bg-[#333] flex items-center justify-center">
+                                          <Check size={14} className="text-white" strokeWidth={3} />
+                                        </div>
+                                      ) : (
+                                        <div className="w-[22px] h-[22px] rounded-full border-[1.5px] border-gray-300" />
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   );
                 })}
@@ -432,9 +521,9 @@ export const WorldbookApp = ({ onBack, key }: { onBack: () => void, key?: React.
                     className="w-full appearance-none bg-white border border-gray-200 rounded-[12px] px-4 py-3 text-[15px] text-gray-800 focus:outline-none focus:border-gray-400"
                   >
                     <option value="未分类">未分类</option>
-                    <option value="世界观">世界观</option>
-                    <option value="角色库">角色库</option>
-                    <option value="规则">规则</option>
+                    {categories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
                   </select>
                   <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 </div>
@@ -607,6 +696,74 @@ export const WorldbookApp = ({ onBack, key }: { onBack: () => void, key?: React.
                   className="flex-1 py-3 text-[15px] font-medium text-white bg-[#333333] rounded-[10px] ml-2 active:bg-black"
                 >
                   确定
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 分类管理面板 */}
+      <AnimatePresence>
+        {showCategoryPanel && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[100] flex items-end justify-center"
+          >
+            <div className="absolute inset-0 bg-black/40" onClick={() => { setShowCategoryPanel(false); setNewCategoryName(''); }} />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+              className="relative z-10 bg-white rounded-t-[24px] w-full max-w-md pb-8 shadow-2xl"
+            >
+              {/* 顶部把手 */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-gray-200" />
+              </div>
+              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+                <span className="text-[17px] font-semibold text-gray-900">分类管理</span>
+                <button onClick={() => { setShowCategoryPanel(false); setNewCategoryName(''); }} className="text-gray-400 active:text-gray-600 p-1">
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* 分类列表 */}
+              <div className="px-5 pt-4 flex flex-col gap-2 max-h-[40vh] overflow-y-auto">
+                {categories.length === 0 && (
+                  <p className="text-[13px] text-gray-400 text-center py-4">暂无分类，请在下方添加</p>
+                )}
+                {categories.map(cat => (
+                  <div key={cat} className="flex items-center justify-between bg-[#F8F8F8] rounded-[12px] px-4 py-3">
+                    <span className="text-[15px] text-gray-800">{cat}</span>
+                    <button
+                      onClick={() => handleDeleteCategory(cat)}
+                      className="text-gray-400 active:text-red-500 p-1 transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* 添加新分类 */}
+              <div className="px-5 pt-4 flex gap-2">
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddCategory(); }}
+                  placeholder="输入新分类名称"
+                  className="flex-1 bg-[#F8F8F8] border border-gray-200 rounded-[12px] px-4 py-2.5 text-[15px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-gray-400"
+                />
+                <button
+                  onClick={handleAddCategory}
+                  className="bg-[#333] text-white rounded-[12px] px-4 py-2.5 text-[15px] font-medium active:bg-black transition-colors shrink-0"
+                >
+                  添加
                 </button>
               </div>
             </motion.div>
