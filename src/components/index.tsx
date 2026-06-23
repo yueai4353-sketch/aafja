@@ -191,6 +191,7 @@ export function AppIcon({ icon, label, onClick, className = "" }: { icon: React.
 }
 
 export * from './SortableAppIcon';
+export * from './IconYouAndMe';
 
 export const ToggleSwitch = ({ checked, onChange }: { checked: boolean, onChange: (val: boolean) => void }) => (
   <div 

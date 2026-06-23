@@ -1,9 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Moon, Signal, Wifi, Battery, ChevronLeft, ChevronRight, User, MoreHorizontal, Plus, Heart, Send, MessageSquare, Phone, Disc, RefreshCcw, Layout, UserPlus, Users, Tag, Search, Camera, Snowflake, Edit2, CreditCard, X, Globe, Folder, Copy, Trash2, LayoutGrid, CornerUpLeft, ChevronsUpDown, Check, MapPin, ArrowRightLeft, Gift, Image as ImageIcon, Mic, Video, CloudMoon, Navigation, Shirt } from 'lucide-react';
+import { Moon, Signal, Wifi, Battery, ChevronLeft, ChevronRight, User, MoreHorizontal, Plus, Send, Heart, MessageSquare, Phone, Disc, RefreshCcw, Layout, UserPlus, Users, Tag, Search, Camera, Snowflake, Edit2, CreditCard, X, Globe, Folder, Copy, Trash2, LayoutGrid, CornerUpLeft, ChevronsUpDown, Check, MapPin, ArrowRightLeft, Gift, Image as ImageIcon, Mic, Video, CloudMoon, Navigation, Shirt } from 'lucide-react';
 import { CurrentTime, ToggleSwitch, useCurrentTime } from '../components';
 import { AppDB } from '../db';
 import { fileToBase64, analyzeImage, compressImage } from '../utils/vision';
+import { shouldShowTimestamp, formatChatTimestamp } from '../utils/timeUtils';
+import { buildWorldbookText, buildPersonaText, buildMyProfileText } from '../utils/schedulePrompt';
+import { loadOtherSchedule } from '../db/youandme';
 
 const ChatSettingsScreen = ({ onBack, friend, onSetRemark, onSetWallpaper, onClearChat, onShowCotDisplayChange }: { onBack: () => void, friend: any, onSetRemark?: (remark: string) => void, onSetWallpaper?: (wp: string) => void, onClearChat?: () => void, onShowCotDisplayChange?: (val: boolean) => void, key?: React.Key }) => {
   const [showRemarkModal, setShowRemarkModal] = useState(false);
@@ -1555,6 +1558,7 @@ const TokenBar = ({ friend, messages, consoleLogs = [], onClearLogs }: { friend:
 
 const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRemark, onDeleteMessages, onEditMessage, walletBalance, setWalletBalance, bankCards, setBankCards, onClearChat, onTriggerAI, isTyping, onUpdateFriend, consoleLogs, onClearConsoleLogs }: { friend: any, myAvatar?: string, messages: any[], onSendMessage: (msg: string, msgType?: string, recalledContent?: string) => void, onBack: () => void, onSetRemark?: (remark: string) => void, onDeleteMessages?: (messageIds: number[]) => void, onEditMessage?: (msgId: number, text: string) => void, walletBalance: number, setWalletBalance: (v: number) => void, bankCards: any[], setBankCards: (cards: any[]) => void, onClearChat?: () => void, onTriggerAI?: () => void, isTyping?: boolean, onUpdateFriend?: (data: any) => void, consoleLogs?: string[], onClearConsoleLogs?: () => void }) => {
   const [inputText, setInputText] = useState('');
+  const [inputFocused, setInputFocused] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [actionMenuMsg, setActionMenuMsg] = useState<any | null>(null);
   const [editingMsg, setEditingMsg] = useState<any | null>(null);
@@ -1568,6 +1572,9 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
   const [showImageDescModal, setShowImageDescModal] = useState(false);
   const [imageDesc, setImageDesc] = useState('');
   const [viewingImageDesc, setViewingImageDesc] = useState<string | null>(null);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [voiceInput, setVoiceInput] = useState('');
+  const [expandedVoiceMsgIds, setExpandedVoiceMsgIds] = useState<Set<number>>(new Set());
   const [moneyAmount, setMoneyAmount] = useState('');
   const [moneyTitle, setMoneyTitle] = useState('');
   const [quotedMessage, setQuotedMessage] = useState<any | null>(null);
@@ -1593,6 +1600,18 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
   const [systemMsgColor, setSystemMsgColor] = useState('');
 
   const [showWorldbookSelect, setShowWorldbookSelect] = useState(false);
+  const [showPhoneCall, setShowPhoneCall] = useState(false);
+  const [callStatus, setCallStatus] = useState<'calling' | 'connected' | 'rejected'>('calling');
+  // 通话回顾：存储被点击的 PHONE_CALL_END 消息的 idx（在 messages 数组中的位置）
+  const [callReviewEndIdx, setCallReviewEndIdx] = useState<number | null>(null);
+  // 通话气泡长按删除菜单
+  const [callBubbleLongPressMsg, setCallBubbleLongPressMsg] = useState<{ msg: any; endIdx: number } | null>(null);
+  const callBubbleLongPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const [callSeconds, setCallSeconds] = useState(0);
+  const callTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const callRejectTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [callInputText, setCallInputText] = useState('');
+  const callInputRef = useRef<HTMLInputElement>(null);
   const [linkedWorldbooks, setLinkedWorldbooks] = useState<string[]>(friend?.linkedWorldbooks || friend?.linked_worldbooks || []);
   const [allWorldbooks, setAllWorldbooks] = useState<any[]>(() => {
     try {
@@ -1933,7 +1952,68 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
               }
             }
           }
+          // 预计算通话区间：PHONE_CALL_START 到 PHONE_CALL_END 之间的消息索引（含 START，不含 END）
+          const callRangeHiddenIdxSet = new Set<number>();
+          {
+            let inCall = false;
+            for (let i = 0; i < messages.length; i++) {
+              const t = messages[i].text || '';
+              if (t === '[PHONE_CALL_START]') { inCall = true; callRangeHiddenIdxSet.add(i); continue; }
+              if (inCall && messages[i].msgType === 'system' && t.startsWith('[PHONE_CALL_END:')) { inCall = false; continue; }
+              if (inCall) callRangeHiddenIdxSet.add(i);
+            }
+          }
           return messages.map((msg, idx) => {
+            // 通话区间内的消息（包含 PHONE_CALL_START 和通话期间的普通消息）不在主界面显示
+            if (callRangeHiddenIdxSet.has(idx)) return null;
+            // 通话结束记录：渲染为绿色气泡
+            if (msg.msgType === 'system' && msg.text && msg.text.startsWith('[PHONE_CALL_END:')) {
+              const mmss = msg.text.match(/^\[PHONE_CALL_END:([\d:]+)\]$/)?.[1] || '';
+              const prevVisibleMsgForCall = (() => {
+                for (let i = idx - 1; i >= 0; i--) {
+                  if (messages[i].msgType !== 'system') return messages[i];
+                }
+                return null;
+              })();
+              const showTimeForCall = shouldShowTimestamp(
+                msg.fullTimestamp ?? msg.timestamp ?? 0,
+                prevVisibleMsgForCall ? (prevVisibleMsgForCall.fullTimestamp ?? prevVisibleMsgForCall.timestamp ?? null) : null
+              );
+              return (
+                <React.Fragment key={idx}>
+                  {showTimeForCall && (
+                    <div className="chat-timestamp">
+                      {formatChatTimestamp(msg.fullTimestamp ?? msg.timestamp ?? 0)}
+                    </div>
+                  )}
+                  <div className="flex items-start gap-3 w-full my-1 flex-row-reverse">
+                    <div className="w-10 h-10 bg-gray-200 rounded-[6px] flex items-center justify-center overflow-hidden shrink-0 mt-0.5">
+                      {(friend.my_bound_avatar || myAvatar)
+                        ? <img src={(friend.my_bound_avatar || myAvatar) as string} alt="" className="w-full h-full object-cover" />
+                        : <User size={20} className="text-gray-400" />
+                      }
+                    </div>
+                    <div
+                      className="flex items-center gap-2 bg-[#95EC69] rounded-[10px] px-4 py-2.5 max-w-[70%] cursor-pointer active:brightness-95 select-none"
+                      onClick={() => setCallReviewEndIdx(idx)}
+                      onPointerDown={() => {
+                        callBubbleLongPressTimer.current = setTimeout(() => {
+                          if (navigator.vibrate) navigator.vibrate(50);
+                          setCallBubbleLongPressMsg({ msg, endIdx: idx });
+                        }, 500);
+                      }}
+                      onPointerUp={() => { if (callBubbleLongPressTimer.current) { clearTimeout(callBubbleLongPressTimer.current); callBubbleLongPressTimer.current = null; } }}
+                      onPointerLeave={() => { if (callBubbleLongPressTimer.current) { clearTimeout(callBubbleLongPressTimer.current); callBubbleLongPressTimer.current = null; } }}
+                      onPointerCancel={() => { if (callBubbleLongPressTimer.current) { clearTimeout(callBubbleLongPressTimer.current); callBubbleLongPressTimer.current = null; } }}
+                      onContextMenu={(e) => { e.preventDefault(); if (callBubbleLongPressTimer.current) { clearTimeout(callBubbleLongPressTimer.current); callBubbleLongPressTimer.current = null; } }}
+                    >
+                      <Phone size={15} className="text-black/70 shrink-0" strokeWidth={2} />
+                      <span className="text-[15px] text-black">[语音通话] 通话时长 {mmss}</span>
+                    </div>
+                  </div>
+                </React.Fragment>
+              );
+            }
             if (msg.msgType === 'system') return null;
 
             let extractedMindCard = msg.mindCard || null;
@@ -1987,7 +2067,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
             let parts: any[] = [];
             if (msg.msgType === 'narrator') {
                 parts = [{ type: 'narrator', text: cleanText }];
-            } else if (cleanText.startsWith('[红包]') || cleanText.startsWith('[TRANSFER:') || cleanText.match(/^\[image:.*\]$/)) {
+            } else if (cleanText.startsWith('[红包]') || cleanText.startsWith('[TRANSFER:') || cleanText.match(/^\[image:.*\]$/) || cleanText.match(/^\[voice:.*\]$/)) {
                 parts = [{ type: 'special', text: cleanText }];
             } else {
                 const hasDialogue = cleanText.includes('「') && cleanText.includes('」');
@@ -2039,9 +2119,26 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
             // 判断此条消息是否是含 <thinking> 的最后一条 AI 消息
             const isCotMsg = useCoTSetting && !msg.isMe && idx === lastAiCotMsgIdx && lastAiCotContent;
 
+            // 智能时间戳：跳过 system 消息后找上一条有效消息的时间戳
+            const prevVisibleMsg = (() => {
+              for (let i = idx - 1; i >= 0; i--) {
+                if (messages[i].msgType !== 'system') return messages[i];
+              }
+              return null;
+            })();
+            const showTime = shouldShowTimestamp(
+              msg.fullTimestamp ?? msg.timestamp ?? 0,
+              prevVisibleMsg ? (prevVisibleMsg.fullTimestamp ?? prevVisibleMsg.timestamp ?? null) : null
+            );
+
             return (
+              <React.Fragment key={idx}>
+              {showTime && (
+                <div className="chat-timestamp">
+                  {formatChatTimestamp(msg.fullTimestamp ?? msg.timestamp ?? 0)}
+                </div>
+              )}
               <div
-                 key={idx}
                  className="flex flex-col w-full relative mb-1"
                  onClick={() => {
                    if (isMultiSelecting) {
@@ -2062,10 +2159,10 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                 )}
 
                 {groups.map((group, gIdx) => {
-                    const isLastGroup = gIdx === groups.length - 1;
-                    if (group.type === 'narrator') {
-                        const pIdx = 0;
-                        const showDot = showMindCardSetting && idx === lastAiMsgIdx && extractedMindCard && isLastGroup;
+                     const isLastGroup = gIdx === groups.length - 1;
+                     if (group.type === 'narrator') {
+                         const pIdx = 0;
+                        const showDot = showMindCardSetting && !msg.isMe && extractedMindCard;
                         return (
                             <div 
                               key={gIdx} 
@@ -2080,7 +2177,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                                onClick={() => {
                                  if (!isMultiSelecting && msg.recalledContent) {
                                     setRecalledContentToShow(msg.recalledContent.replace(/\[SECONDS:\d+\]$/, ''));
-                                 } else if (!isMultiSelecting && !msg.isMe && showMindCardSetting && idx === lastAiMsgIdx && extractedMindCard) {
+                                 } else if (!isMultiSelecting && !msg.isMe && showMindCardSetting && extractedMindCard) {
                                     setViewingMindCard(extractedMindCard);
                                  }
                                }}
@@ -2102,9 +2199,51 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                         const isRedPacket = text.startsWith('[红包] ');
                         const isTransfer = text.startsWith('[TRANSFER:');
                         const isImage = text.match(/^\[image:(.*)\]$/);
-                        
+                        const isVoice = text.match(/^\[voice:([\s\S]*)\]$/);
+
                         let content = null;
-                        if (isImage) {
+                        if (isVoice) {
+                          const voiceText = isVoice[1];
+                          const isExpanded = expandedVoiceMsgIds.has(msg.id);
+                          // 估算时长：每字约0.3秒，最少1秒
+                          const duration = Math.max(1, Math.round(voiceText.length * 0.3));
+                          content = (
+                            <div
+                              className={`select-none rounded-[10px] overflow-hidden ${isMultiSelecting ? '' : 'cursor-pointer'}`}
+                              onClick={() => {
+                                if (isMultiSelecting) return;
+                                setExpandedVoiceMsgIds(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(msg.id)) next.delete(msg.id);
+                                  else next.add(msg.id);
+                                  return next;
+                                });
+                              }}
+                              onPointerDown={() => { if (!isMultiSelecting) startLongPress(msg); }}
+                              onPointerUp={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                              onPointerLeave={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                              onPointerCancel={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                              onContextMenu={(e: any) => { e.preventDefault(); if (!isMultiSelecting) cancelLongPress(); }}
+                            >
+                              {/* 语音气泡主体 */}
+                              <div className={`flex items-center gap-2 px-4 py-2.5 rounded-[10px] min-w-[80px] max-w-[200px] active:brightness-95 transition-all ${msg.isMe ? 'bg-[#95EC69] flex-row-reverse' : 'bg-white'}`}>
+                                <span className="text-[14px] font-medium text-gray-700 shrink-0">{duration}"</span>
+                                <svg width="20" height="16" viewBox="0 0 20 16" fill="none" className={`shrink-0 ${msg.isMe ? 'scale-x-[-1]' : ''}`}>
+                                  <rect x="0" y="5" width="3" height="6" rx="1.5" fill="#666" opacity="0.5"/>
+                                  <rect x="5" y="2.5" width="3" height="11" rx="1.5" fill="#666" opacity="0.7"/>
+                                  <rect x="10" y="0" width="3" height="16" rx="1.5" fill="#666"/>
+                                  <rect x="15" y="2.5" width="3" height="11" rx="1.5" fill="#666" opacity="0.7"/>
+                                </svg>
+                              </div>
+                              {/* 展开内容 */}
+                              {isExpanded && (
+                                <div className={`mt-1 px-4 py-2.5 text-[14px] text-gray-700 leading-relaxed rounded-[10px] ${msg.isMe ? 'bg-[#95EC69]' : 'bg-white'}`}>
+                                  {voiceText}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        } else if (isImage) {
                           const desc = isImage[1];
                           content = (
                             <div 
@@ -2210,7 +2349,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                             </div>
                             <div className={`max-w-[70%] flex flex-col gap-2 ${msg.isMe ? 'items-end' : 'items-start'}`}>
                                {group.parts.map((p: any, pIdx: number) => {
-                                  const showDot = showMindCardSetting && idx === lastAiMsgIdx && extractedMindCard && isLastGroup && pIdx === group.parts.length - 1;
+                                  const showDot = showMindCardSetting && !msg.isMe && extractedMindCard && pIdx === group.parts.length - 1;
                                   const showCotBubble = !msg.isMe && isCotMsg && showCotDisplaySetting && isLastGroup && pIdx === group.parts.length - 1;
                                   return (
                                      <>
@@ -2237,7 +2376,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                                       onPointerCancel={() => { if (!isMultiSelecting) cancelLongPress(); }}
                                       onContextMenu={(e: any) => { e.preventDefault(); if (!isMultiSelecting) cancelLongPress(); }}
                                       onClick={() => {
-                                        if (!isMultiSelecting && !msg.isMe && showMindCardSetting && idx === lastAiMsgIdx && extractedMindCard) {
+                                        if (!isMultiSelecting && !msg.isMe && showMindCardSetting && extractedMindCard) {
                                            setViewingMindCard(extractedMindCard);
                                         }
                                       }}
@@ -2271,6 +2410,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                     }
                 })}
               </div>
+              </React.Fragment>
             );
           })
         })()}
@@ -2308,7 +2448,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
           </button>
         </div>
       ) : (
-        <div className="bg-[#f7f7f7] border-t border-gray-200 px-3 py-2 shrink-0 pb-6 flex items-end gap-3 min-h-[60px] relative">
+        <div className="bg-[#f7f7f7] border-t border-gray-200 px-2 py-2 shrink-0 pb-6 flex items-end gap-1.5 min-h-[60px] relative">
           <AnimatePresence>
             {showPluginPanel && (
               <>
@@ -2470,9 +2610,118 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                          <span className="text-[11px] text-gray-500 font-medium">视频</span>
                       </button>
                       <button 
-                         onClick={() => {
+                         onClick={async () => {
                            setShowPluginPanel(false);
-                           onSendMessage('「拨打了电话」', 'system');
+                           setCallSeconds(0);
+                           setCallStatus('calling');
+                           setShowPhoneCall(true);
+
+                           // 读取 API 配置
+                           const apiUrl = (localStorage.getItem('os_api_url') || '').trim();
+                           const apiKey = (localStorage.getItem('os_api_key') || '').trim();
+                           const model = (localStorage.getItem('os_api_model') || '').trim();
+
+                           if (!apiUrl || !apiKey || !model) {
+                             // 无 API 配置，3 秒后模拟接听
+                             callRejectTimerRef.current = setTimeout(() => {
+                               setCallStatus('connected');
+                               callTimerRef.current = setInterval(() => setCallSeconds(prev => prev + 1), 1000);
+                             }, 3000);
+                             return;
+                           }
+
+                           try {
+                             let completionsUrl = apiUrl;
+                             if (!completionsUrl.endsWith('/chat/completions')) {
+                               completionsUrl = completionsUrl.endsWith('/')
+                                 ? `${completionsUrl}chat/completions`
+                                 : `${completionsUrl}/chat/completions`;
+                             }
+                             const validatedUrl = new URL(completionsUrl).toString();
+
+                             // 构建完整上下文：世界书 + AI人设 + 用户设定 + 对方(AI)日程
+                             const ai = friend;
+                             const worldbookText = buildWorldbookText(ai);
+                             const personaDesc = buildPersonaText(ai);
+
+                             // 读取我的档案
+                             const myPersonaRec = await AppDB.appSettings.get('my_persona');
+                             const myProfileData = myPersonaRec?.value || {};
+                             const myProfileText = buildMyProfileText(myProfileData);
+
+                             // 读取"你我之间"对方(AI)的今日日程
+                             const otherScheduleItems = loadOtherSchedule();
+                             const nowDate = new Date();
+                             const todayStr = `${nowDate.getFullYear()}.${nowDate.getMonth() + 1}.${nowDate.getDate()}`;
+                             const todaySchedule = otherScheduleItems
+                               .filter(item => item.date === todayStr)
+                               .map(item => `${item.time}  ${item.text}`)
+                               .join('\n');
+
+                             const nowStr = nowDate.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+                             const prompt = `你是${ai.wechat_remark || ai.name}，下面是你的完整档案与当前上下文：
+
+【你的人设档案】
+${personaDesc}
+
+${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myProfileText ? `【与你联系的用户档案】\n${myProfileText}\n` : ''}${todaySchedule ? `【你今日的日程安排】\n${todaySchedule}\n` : ''}
+【当前时间】${nowStr}
+
+现在对方（用户）突然给你打来电话。请你完全代入自己的人设、当前时间、今日日程和当前状态，判断你此刻是否会接听这个电话。
+
+只输出以下两种之一，不要任何其他内容：
+[ACCEPT] 如果你会接听
+[REJECT] 如果你不接听（忙线、睡着、不方便、日程冲突等）`;
+
+                             const resp = await fetch(validatedUrl, {
+                               method: 'POST',
+                               headers: {
+                                 'Content-Type': 'application/json',
+                                 'Authorization': `Bearer ${apiKey}`,
+                               },
+                               body: JSON.stringify({
+                                 model,
+                                 messages: [{ role: 'user', content: prompt }],
+                                 temperature: 0.7,
+                                 stream: false,
+                               }),
+                             });
+
+                             let aiReply = '';
+                             if (resp.ok) {
+                               const data = await resp.json();
+                               aiReply = data?.choices?.[0]?.message?.content || '';
+                             }
+
+                             if (aiReply.includes('[ACCEPT]')) {
+                               // 接听：2-4 秒后状态变为通话中，接通后触发通话专用 AI 对话
+                               const delay = 2000 + Math.random() * 2000;
+                               callRejectTimerRef.current = setTimeout(async () => {
+                                 setCallStatus('connected');
+                                 callTimerRef.current = setInterval(() => setCallSeconds(prev => prev + 1), 1000);
+                                 // 触发通话专用提示词：发送系统消息给 AI，让 AI 以语音通话格式回复
+                                 onSendMessage('[PHONE_CALL_START]', 'system');
+                               }, delay);
+                             } else {
+                               // 不接：3-6 秒后自动挂断
+                               const delay = 3000 + Math.random() * 3000;
+                               callRejectTimerRef.current = setTimeout(() => {
+                                 setCallStatus('rejected');
+                                 setTimeout(() => {
+                                   onSendMessage('「对方未接听」', 'system');
+                                   setShowPhoneCall(false);
+                                   setCallSeconds(0);
+                                   setCallStatus('calling');
+                                 }, 1500);
+                               }, delay);
+                             }
+                           } catch (_e) {
+                             // 网络错误，3 秒后默认接听
+                             callRejectTimerRef.current = setTimeout(() => {
+                               setCallStatus('connected');
+                               callTimerRef.current = setInterval(() => setCallSeconds(prev => prev + 1), 1000);
+                             }, 3000);
+                           }
                          }}
                          className="flex flex-col items-center gap-1.5"
                       >
@@ -2600,7 +2849,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
               <Plus size={16} strokeWidth={2.5} />
             </div>
           </button>
-          <div className={`flex-1 min-h-[40px] bg-white rounded-md flex flex-col justify-center px-3 py-1 border overflow-hidden mb-1 ${isNarratorMode ? 'border-pink-300 bg-pink-50/30' : 'border-gray-200'}`}>
+          <div className={`relative flex-1 min-h-[40px] bg-white rounded-md flex flex-col justify-center px-3 py-1 border overflow-hidden mb-1 ${isNarratorMode ? 'border-pink-300 bg-pink-50/30' : 'border-gray-200'}`}>
             {quotedMessage && (
               <div className="w-full flex items-center justify-between bg-gray-100 rounded-[4px] px-2 py-1 mb-1 mt-1">
                 <span className="text-[12px] text-gray-500 truncate mr-2">
@@ -2625,57 +2874,73 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                 </button>
               </div>
             )}
-            <textarea 
-              ref={textareaRef}
-              placeholder={isNarratorMode ? "请输入旁白..." : "请输入消息..."}
-              value={inputText}
-              onChange={e => {
-                setInputText(e.target.value);
-                // 自动调整高度
-                const el = textareaRef.current;
-                if (el) {
-                  el.style.height = 'auto';
-                  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  if (inputText.trim()) {
-                    let finalText = inputText.trim();
-                    if (quotedMessage) {
-                       const quoteName = quotedMessage.isMe ? '我' : (friend.wechat_remark || friend.name);
-                       let coreText = quotedMessage.text;
-                       if (coreText.match(/^「(.*?)」\n- - - - - - - - - - - - - - -\n([\s\S]*)$/)) {
-                           coreText = coreText.match(/^「(.*?)」\n- - - - - - - - - - - - - - -\n([\s\S]*)$/)[2];
-                       } else if (coreText.match(/^\[引用:(.*?)\]\n([\s\S]*)$/)) {
-                           coreText = coreText.match(/^\[引用:(.*?)\]\n([\s\S]*)$/)[2];
-                       }
-                       const quoteContent = coreText.startsWith('[红包]') ? '[红包]' : 
-                                            coreText.startsWith('[TRANSFER:') ? '[转账]' : 
-                                            quotedMessage.msgType === 'image' ? '[图片]' : 
-                                            quotedMessage.msgType === 'voice' ? '[语音]' : 
-                                            coreText;
-                       finalText = `「${quoteName}: ${quoteContent}」\n- - - - - - - - - - - - - - -\n${finalText}`;
-                    }
-                    onSendMessage(finalText, isNarratorMode ? 'narrator' : 'text');
-                    setInputText('');
-                    setQuotedMessage(null);
-                    // 发送后重置高度
-                    const el = textareaRef.current;
-                    if (el) {
-                      el.style.height = 'auto';
+            <div className="flex items-end">
+              <textarea 
+                ref={textareaRef}
+                placeholder={isNarratorMode ? "请输入旁白..." : "请输入消息..."}
+                value={inputText}
+                onChange={e => {
+                  setInputText(e.target.value);
+                  // 自动调整高度
+                  const el = textareaRef.current;
+                  if (el) {
+                    el.style.height = 'auto';
+                    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (inputText.trim()) {
+                      let finalText = inputText.trim();
+                      if (quotedMessage) {
+                         const quoteName = quotedMessage.isMe ? '我' : (friend.wechat_remark || friend.name);
+                         let coreText = quotedMessage.text;
+                         if (coreText.match(/^「(.*?)」\n- - - - - - - - - - - - - - -\n([\s\S]*)$/)) {
+                             coreText = coreText.match(/^「(.*?)」\n- - - - - - - - - - - - - - -\n([\s\S]*)$/)[2];
+                         } else if (coreText.match(/^\[引用:(.*?)\]\n([\s\S]*)$/)) {
+                             coreText = coreText.match(/^\[引用:(.*?)\]\n([\s\S]*)$/)[2];
+                         }
+                         const quoteContent = coreText.startsWith('[红包]') ? '[红包]' : 
+                                              coreText.startsWith('[TRANSFER:') ? '[转账]' : 
+                                              quotedMessage.msgType === 'image' ? '[图片]' : 
+                                              quotedMessage.msgType === 'voice' ? '[语音]' : 
+                                              coreText;
+                         finalText = `「${quoteName}: ${quoteContent}」\n- - - - - - - - - - - - - - -\n${finalText}`;
+                      }
+                      onSendMessage(finalText, isNarratorMode ? 'narrator' : 'text');
+                      setInputText('');
+                      setQuotedMessage(null);
+                      // 发送后重置高度
+                      const el = textareaRef.current;
+                      if (el) {
+                        el.style.height = 'auto';
+                      }
                     }
                   }
-                }
-              }}
-              rows={1}
-              style={{ minHeight: '24px', maxHeight: '120px', overflow: 'auto' }}
-              className="w-full text-[15px] bg-transparent outline-none resize-none leading-[24px]"
-            />
+                }}
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)}
+                rows={1}
+                style={{ minHeight: '24px', maxHeight: '120px', overflow: 'auto' }}
+                className="flex-1 text-[15px] bg-transparent outline-none resize-none leading-[24px] pr-1"
+              />
+              {/* 语音按钮 - 输入框内右侧 */}
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { setVoiceInput(''); setShowVoiceModal(true); }}
+                className="shrink-0 ml-1 mb-0.5 p-0.5 text-gray-400 active:scale-95 transition-transform"
+                title="语音输入"
+              >
+                <div className="w-[22px] h-[22px] rounded-full border border-gray-400 flex items-center justify-center">
+                  <Mic size={13} strokeWidth={2} />
+                </div>
+              </button>
+            </div>
           </div>
           
-          {!!offlineStartTime && (
+          {/* 表情包按钮（在线模式）/ 铅笔旁白切换按钮（线下模式） */}
+          {!!offlineStartTime ? (
             <button 
               className={`shrink-0 mb-1 p-1 active:scale-95 transition-transform ${isNarratorMode ? 'text-pink-400' : 'text-gray-500'}`}
               onClick={() => setIsNarratorMode(!isNarratorMode)}
@@ -2684,21 +2949,29 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                  <Edit2 size={14} strokeWidth={2.5} className="text-inherit" />
               </div>
             </button>
+          ) : (
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              className="shrink-0 mb-1 p-1 text-gray-500 active:scale-95 transition-transform"
+              title="表情"
+            >
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="2.5" />
+                <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="2.5" />
+              </svg>
+            </button>
           )}
 
-          <button 
-            className="text-gray-500 shrink-0 mb-1 p-1 active:scale-95 transition-transform"
-            onClick={() => {
-              if (onTriggerAI) onTriggerAI();
-            }}
-          >
-             <Heart size={26} strokeWidth={1.5} />
-          </button>
-          <button 
-             onClick={() => {
-               if (inputText.trim()) {
-                 let finalText = inputText.trim();
-                 if (quotedMessage) {
+          {/* 发送键（聚焦）/ Heart+语音（失焦） */}
+          {inputFocused ? (
+            <button 
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                if (inputText.trim()) {
+                  let finalText = inputText.trim();
+                  if (quotedMessage) {
                     const quoteName = quotedMessage.isMe ? '我' : (friend.wechat_remark || friend.name);
                     let coreText = quotedMessage.text;
                     if (coreText.match(/^「(.*?)」\n- - - - - - - - - - - - - - -\n([\s\S]*)$/)) {
@@ -2712,16 +2985,29 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                                          quotedMessage.msgType === 'voice' ? '[语音]' : 
                                          coreText;
                     finalText = `「${quoteName}: ${quoteContent}」\n- - - - - - - - - - - - - - -\n${finalText}`;
-                 }
-                 onSendMessage(finalText, isNarratorMode ? 'narrator' : 'text');
-                 setInputText('');
-                 setQuotedMessage(null);
-               }
-             }}
-             className="text-gray-500 shrink-0 mb-1 p-1"
-          >
-             <Send size={24} strokeWidth={1.5} />
-          </button>
+                  }
+                  onSendMessage(finalText, isNarratorMode ? 'narrator' : 'text');
+                  setInputText('');
+                  setQuotedMessage(null);
+                }
+              }}
+              className="text-gray-500 shrink-0 mb-1 p-1 active:scale-95 transition-transform"
+            >
+              <Send size={24} strokeWidth={1.5} />
+            </button>
+          ) : (
+            <>
+              {/* Heart：触发AI回复 */}
+              <button
+                className="text-gray-500 shrink-0 mb-1 p-1 active:scale-95 transition-transform"
+                onClick={() => { if (onTriggerAI) onTriggerAI(); }}
+                title="触发AI回复"
+              >
+                <Heart size={26} strokeWidth={1.5} />
+              </button>
+
+            </>
+          )}
         </div>
       )}
     </motion.div>
@@ -3240,6 +3526,34 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
         </>
       )}
 
+      {showVoiceModal && (
+        <>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowVoiceModal(false)} className="fixed inset-0 bg-black/40 z-[100]" />
+          <motion.div initial={{ opacity: 0, scale: 0.95, y: -20, x: '-50%' }} animate={{ opacity: 1, scale: 1, y: '-50%', x: '-50%' }} exit={{ opacity: 0, scale: 0.95, y: -20, x: '-50%' }} className="fixed top-1/2 left-1/2 w-[84%] bg-white rounded-[20px] z-[110] flex flex-col overflow-hidden shadow-xl">
+            <div className="p-5 pb-4">
+              <div className="text-[17px] font-medium text-gray-900 mb-1">语音消息</div>
+              <div className="text-[13px] text-gray-400 mb-4">用文字模拟语音内容</div>
+              <textarea
+                value={voiceInput}
+                onChange={e => setVoiceInput(e.target.value)}
+                placeholder="输入你想说的话..."
+                autoFocus
+                className="w-full h-[100px] px-3 py-3 border border-gray-200 rounded-[10px] text-[15px] text-gray-800 placeholder-gray-300 focus:outline-none focus:border-gray-400 transition-colors resize-none bg-[#fafafa]"
+              />
+            </div>
+            <div className="flex border-t border-gray-100">
+              <button onClick={() => setShowVoiceModal(false)} className="flex-1 py-3.5 text-[16px] font-medium text-gray-900 active:bg-gray-50 transition-colors border-r border-gray-100">取消</button>
+              <button onClick={() => {
+                if (voiceInput.trim()) {
+                  onSendMessage(`[voice:${voiceInput.trim()}]`, 'voice');
+                  setShowVoiceModal(false);
+                }
+              }} className="flex-1 py-3.5 text-[16px] font-medium text-[#576B95] active:bg-gray-50 transition-colors">发送</button>
+            </div>
+          </motion.div>
+        </>
+      )}
+
       {showImageDescModal && (
         <>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowImageDescModal(false)} className="fixed inset-0 bg-black/40 z-[100]" />
@@ -3342,6 +3656,358 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                 塞钱进红包
               </button>
             </div>
+          </motion.div>
+        </>
+      )}
+
+      {showPhoneCall && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black z-[200] flex flex-col items-center justify-between py-8 px-6"
+          >
+            {/* 右上角设置图标 */}
+            <div className="w-full flex justify-end">
+              <button className="text-white/60 active:text-white transition-colors">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* 中间：头像 + 名字 + 状态 */}
+            <div className="flex flex-col items-center gap-2">
+              <div className={`w-[48px] h-[48px] rounded-full overflow-hidden border-[2px] shadow-[0_0_20px_rgba(255,255,255,0.08)] transition-all duration-500 ${callStatus === 'connected' ? 'border-white/40 scale-110' : callStatus === 'rejected' ? 'border-red-500/50' : 'border-white/20'}`}>
+                {friend.avatar
+                  ? <img src={friend.avatar} alt="avatar" className="w-full h-full object-cover" />
+                  : <div className="w-full h-full bg-gray-600 flex items-center justify-center"><User size={20} className="text-gray-300" /></div>
+                }
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-white text-[18px] font-medium tracking-wide">{friend.wechat_remark || friend.name}</span>
+                {callStatus === 'calling' && (
+                  <span className="text-white/70 text-[13px]">正在呼叫...</span>
+                )}
+                {callStatus === 'connected' && (
+                  <span className="text-[#4ade80] text-[13px]">通话中</span>
+                )}
+                {callStatus === 'rejected' && (
+                  <span className="text-red-400 text-[13px]">对方未接听</span>
+                )}
+                <span className="text-white/50 text-[12px] font-mono tabular-nums">
+                  {callStatus === 'calling'
+                    ? '00:00'
+                    : `${String(Math.floor(callSeconds / 60)).padStart(2, '0')}:${String(callSeconds % 60).padStart(2, '0')}`
+                  }
+                </span>
+              </div>
+            </div>
+
+            {/* 通话消息滚动区 */}
+            {callStatus === 'connected' && (() => {
+              // 找到 [PHONE_CALL_START] 之后的所有消息
+              const callStartIdx = (() => {
+                for (let i = messages.length - 1; i >= 0; i--) {
+                  if (messages[i].text === '[PHONE_CALL_START]') return i;
+                }
+                return -1;
+              })();
+              const callMsgs = callStartIdx >= 0 ? messages.slice(callStartIdx + 1).filter(m => m.text !== '[PHONE_CALL_HEART]' && m.msgType !== 'system') : [];
+              if (callMsgs.length === 0) return null;
+              return (
+                <div className="w-full flex-1 overflow-y-auto px-4 flex flex-col gap-3 no-scrollbar max-h-[55vh]">
+                  {callMsgs.map((msg: any, idx: number) => {
+                    const text = msg.text || '';
+                    if (msg.msgType === 'narrator') {
+                      return (
+                        <div key={idx} className="w-full flex justify-center">
+                          <span className="text-[13px] text-white/50 italic leading-relaxed text-center whitespace-pre-wrap">{text}</span>
+                        </div>
+                      );
+                    }
+                    // 解析旁白（普通文本）和说话内容（「」包裹）
+                    const segments: { type: 'narrator' | 'dialogue'; text: string }[] = [];
+                    const hasQuote = text.includes('「') && text.includes('」');
+                    if (hasQuote) {
+                      let cur = 0;
+                      while (cur < text.length) {
+                        const open = text.indexOf('「', cur);
+                        if (open === -1) {
+                          const t = text.substring(cur).trim();
+                          if (t) segments.push({ type: 'narrator', text: t });
+                          break;
+                        }
+                        if (open > cur) {
+                          const t = text.substring(cur, open).trim();
+                          if (t) segments.push({ type: 'narrator', text: t });
+                        }
+                        const close = text.indexOf('」', open + 1);
+                        if (close === -1) {
+                          const t = text.substring(open).trim();
+                          if (t) segments.push({ type: 'narrator', text: t });
+                          break;
+                        }
+                        const inner = text.substring(open + 1, close).trim();
+                        if (inner) segments.push({ type: 'dialogue', text: inner });
+                        cur = close + 1;
+                      }
+                    } else {
+                      if (text.trim()) segments.push({ type: 'narrator', text: text.trim() });
+                    }
+                    return (
+                      <div key={idx} className={`flex flex-col gap-1 ${msg.isMe ? 'items-end' : 'items-start'}`}>
+                        {segments.map((seg, sIdx) => {
+                          if (seg.type === 'narrator') {
+                            return (
+                              <span key={sIdx} className="text-[13px] text-white/50 italic leading-relaxed text-center w-full whitespace-pre-wrap">
+                                {seg.text}
+                              </span>
+                            );
+                          }
+                          return (
+                            <span key={sIdx} className="text-[15px] text-white leading-relaxed whitespace-pre-wrap underline underline-offset-[3px] decoration-white/60">
+                              {seg.text}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {/* 底部：输入栏 + 挂断按钮 */}
+            <div className="flex flex-col items-center gap-4 w-full">
+              {/* 通话中输入栏 */}
+              {callStatus === 'connected' && (
+                <div className="w-full flex items-center gap-2 px-2">
+                  <div className="flex-1 flex items-center bg-white/10 rounded-full px-4 py-2.5 border border-white/20">
+                    <input
+                      ref={callInputRef}
+                      type="text"
+                      value={callInputText}
+                      onChange={e => setCallInputText(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && callInputText.trim()) {
+                          onSendMessage(callInputText.trim(), 'text');
+                          setCallInputText('');
+                        }
+                      }}
+                      placeholder="请输入消息..."
+                      className="flex-1 bg-transparent text-white placeholder-white/40 text-[14px] outline-none"
+                    />
+                  </div>
+                  {/* 爱心按钮：触发AI回复（通话场景） */}
+                  <button
+                    onClick={() => {
+                      // 先发一条通话心跳标记，让 handleTriggerAI 识别为通话场景
+                      onSendMessage('[PHONE_CALL_HEART]', 'system');
+                      setTimeout(() => {
+                        if (onTriggerAI) onTriggerAI();
+                      }, 50);
+                    }}
+                    className="w-10 h-10 flex items-center justify-center active:scale-90 transition-transform"
+                  >
+                    <Heart size={24} className="text-white/80" strokeWidth={1.5} />
+                  </button>
+                  {/* 发送按钮 */}
+                  <button
+                    onClick={() => {
+                      if (callInputText.trim()) {
+                        onSendMessage(callInputText.trim(), 'text');
+                        setCallInputText('');
+                      }
+                    }}
+                    className="w-10 h-10 flex items-center justify-center active:scale-90 transition-transform"
+                  >
+                    <Send size={22} className="text-white/80" strokeWidth={1.5} />
+                  </button>
+                </div>
+              )}
+
+              {/* 挂断按钮 */}
+              <div className="flex flex-col items-center gap-3">
+                <button
+                  onClick={() => {
+                    // 清理所有定时器
+                    if (callRejectTimerRef.current) {
+                      clearTimeout(callRejectTimerRef.current);
+                      callRejectTimerRef.current = null;
+                    }
+                    if (callTimerRef.current) {
+                      clearInterval(callTimerRef.current);
+                      callTimerRef.current = null;
+                    }
+                    // 只有通话中才发送通话时长
+                    if (callStatus === 'connected') {
+                      const mins = Math.floor(callSeconds / 60);
+                      const secs = callSeconds % 60;
+                      const mmss = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+                      onSendMessage(`[PHONE_CALL_END:${mmss}]`, 'system');
+                    } else if (callStatus === 'calling') {
+                      onSendMessage('「已取消通话」', 'system');
+                    }
+                    setShowPhoneCall(false);
+                    setCallSeconds(0);
+                    setCallStatus('calling');
+                    setCallInputText('');
+                  }}
+                  className="w-[52px] h-[52px] bg-[#f03e3e] rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(240,62,62,0.4)] active:scale-95 transition-transform"
+                >
+                  <Phone size={22} className="text-white rotate-[135deg]" strokeWidth={2} />
+                </button>
+                <span className="text-white/40 text-[12px]">挂断</span>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+
+      {/* 通话回顾全屏界面 */}
+      {callReviewEndIdx !== null && (() => {
+        // 找到该 PHONE_CALL_END 消息之前最近的 PHONE_CALL_START
+        const endMsg = messages[callReviewEndIdx];
+        const mmss = endMsg?.text?.match(/^\[PHONE_CALL_END:([\d:]+)\]$/)?.[1] || '';
+        let startIdx = -1;
+        for (let i = callReviewEndIdx - 1; i >= 0; i--) {
+          if (messages[i].text === '[PHONE_CALL_START]') { startIdx = i; break; }
+        }
+        const reviewMsgs = startIdx >= 0
+          ? messages.slice(startIdx + 1, callReviewEndIdx).filter(m => m.text !== '[PHONE_CALL_HEART]' && m.msgType !== 'system')
+          : [];
+        return (
+          <motion.div
+            key="callReview"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black z-[250] flex flex-col"
+          >
+            {/* 头部 */}
+            <div className="flex flex-col items-center pt-14 pb-6 shrink-0">
+              <div className="w-[48px] h-[48px] rounded-full overflow-hidden border-[2px] border-white/30 mb-3">
+                {friend.avatar
+                  ? <img src={friend.avatar} alt="avatar" className="w-full h-full object-cover" />
+                  : <div className="w-full h-full bg-gray-600 flex items-center justify-center"><User size={20} className="text-gray-300" /></div>
+                }
+              </div>
+              <span className="text-white text-[18px] font-medium">{friend.wechat_remark || friend.name}</span>
+              <span className="text-white/40 text-[13px] mt-1">通话时长 {mmss}</span>
+            </div>
+            {/* 关闭按钮 */}
+            <button
+              onClick={() => setCallReviewEndIdx(null)}
+              className="absolute top-12 right-5 text-white/60 active:text-white transition-colors"
+            >
+              <X size={22} strokeWidth={1.5} />
+            </button>
+            {/* 消息列表 */}
+            <div className="flex-1 overflow-y-auto px-5 pb-8 flex flex-col gap-3 no-scrollbar">
+              {reviewMsgs.map((msg: any, idx: number) => {
+                const text = msg.text || '';
+                if (msg.msgType === 'narrator') {
+                  return (
+                    <div key={idx} className="w-full flex justify-center my-2">
+                      <span className="text-[13px] text-white/50 italic leading-relaxed text-center whitespace-pre-wrap">{text}</span>
+                    </div>
+                  );
+                }
+                const segments: { type: 'narrator' | 'dialogue'; text: string }[] = [];
+                const hasQuote2 = text.includes('「') && text.includes('」');
+                if (hasQuote2) {
+                  let cur = 0;
+                  while (cur < text.length) {
+                    const open = text.indexOf('「', cur);
+                    if (open === -1) { const t = text.substring(cur).trim(); if (t) segments.push({ type: 'narrator', text: t }); break; }
+                    if (open > cur) { const t = text.substring(cur, open).trim(); if (t) segments.push({ type: 'narrator', text: t }); }
+                    const close = text.indexOf('」', open + 1);
+                    if (close === -1) { const t = text.substring(open).trim(); if (t) segments.push({ type: 'narrator', text: t }); break; }
+                    const inner = text.substring(open + 1, close).trim();
+                    if (inner) segments.push({ type: 'dialogue', text: inner });
+                    cur = close + 1;
+                  }
+                } else {
+                  if (text.trim()) segments.push({ type: 'narrator', text: text.trim() });
+                }
+                return (
+                  <div key={idx} className={`flex flex-col gap-1 ${msg.isMe ? 'items-end' : 'items-start'}`}>
+                    {segments.map((seg, sIdx) => {
+                      if (seg.type === 'narrator') {
+                        return (
+                          <span key={sIdx} className="text-[13px] text-white/50 italic leading-relaxed text-center w-full whitespace-pre-wrap my-1">
+                            {seg.text}
+                          </span>
+                        );
+                      }
+                      return (
+                        <span key={sIdx} className="text-[15px] text-white leading-relaxed whitespace-pre-wrap underline underline-offset-[3px] decoration-white/60">
+                          {seg.text}
+                        </span>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+              {reviewMsgs.length === 0 && (
+                <div className="flex-1 flex items-center justify-center">
+                  <span className="text-white/30 text-[14px]">暂无通话记录</span>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        );
+      })()}
+
+      {/* 通话气泡长按删除菜单 */}
+      {callBubbleLongPressMsg && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setCallBubbleLongPressMsg(null)}
+            className="fixed inset-0 bg-black/30 z-[100]"
+          />
+          <motion.div
+            initial={{ opacity: 0, y: '100%' }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: '100%' }}
+            transition={{ type: "spring", damping: 25, stiffness: 300, mass: 0.8 }}
+            className="fixed bottom-0 left-0 right-0 z-[110] p-3 pb-8"
+          >
+            <div className="bg-[#f7f7f7] rounded-[14px] overflow-hidden mb-2">
+              <button
+                onClick={() => {
+                  // 找到从 PHONE_CALL_START 到 PHONE_CALL_END 的所有消息 id
+                  const endIdx = callBubbleLongPressMsg.endIdx;
+                  let startIdx = -1;
+                  for (let i = endIdx - 1; i >= 0; i--) {
+                    if (messages[i].text === '[PHONE_CALL_START]') { startIdx = i; break; }
+                  }
+                  const idsToDelete: number[] = [];
+                  const rangeStart = startIdx >= 0 ? startIdx : endIdx;
+                  for (let i = rangeStart; i <= endIdx; i++) {
+                    if (messages[i]?.id != null) idsToDelete.push(messages[i].id);
+                  }
+                  if (idsToDelete.length > 0 && onDeleteMessages) onDeleteMessages(idsToDelete);
+                  setCallBubbleLongPressMsg(null);
+                }}
+                className="w-full flex items-center justify-center gap-2 py-[15px] active:bg-gray-200/50 bg-white"
+              >
+                <Trash2 size={18} className="text-[#ee0a24]" />
+                <span className="text-[16px] text-[#ee0a24]">删除通话记录</span>
+              </button>
+            </div>
+            <button
+              onClick={() => setCallBubbleLongPressMsg(null)}
+              className="w-full py-[15px] bg-white rounded-[14px] text-[16px] font-medium text-[#4B79B5] active:bg-gray-100"
+            >
+              取消
+            </button>
           </motion.div>
         </>
       )}

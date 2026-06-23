@@ -198,6 +198,8 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
     const userPov = settingsRec?.value?.userPov || 'second';
     const customStyle = settingsRec?.value?.contentStyle || '';
     const forceMindCard = settingsRec?.value?.showMindCard || false;
+    // 读取"停用时间感知"开关
+    const disableTimeAwareness = settingsRec?.value?.disableTimeAwareness || false;
 
     let prompt = '';
     
@@ -228,7 +230,16 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
         }
         return `${msg.isMe ? myProfile?.name || '我' : persona.name}: ${text}`;
     }).join('\n');
-    const nowTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+    // 根据"停用时间感知"开关决定 timeContext 内容
+    let timeContextValue: string;
+    if (disableTimeAwareness) {
+        // 开关开启：不注入真实时间，告知 AI 根据上下文推算时间线
+        timeContextValue = result.timeContext || `【时间感知说明】请忽略现实中的真实系统时间，不要依赖任何外部时钟。请根据聊天记录中的上下文、事件发展和对话内容来推算当前所处的时间线。\n`;
+    } else {
+        // 开关关闭（默认）：注入真实当前时间
+        const nowTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+        timeContextValue = result.timeContext || `【系统当前时间】${nowTime}\n`;
+    }
 
     if (useV2) {
         // 内部已经有一个独立导出的 buildAutoOfflineSystemPromptV2，我们直接调用它，而不是再声明一次
@@ -242,7 +253,7 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
             worldbookContent: result.worldbookContent,
             memoryContent: result.memoryContent,
             letterContext: `\n【最近聊天记录】\n${formattedHistory}\n`,
-            timeContext: result.timeContext || `【系统当前时间】${nowTime}\n`,
+            timeContext: timeContextValue,
             userGender: myProfile?.gender || '',
             aiPov: aiPov,
             userPov: userPov,
@@ -258,6 +269,66 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
     (result as any).prompt = prompt;
     (result as any).imageMessages = imageMessages;
     return result;
+}
+
+/**
+ * 构建电话通话专用提示词
+ * 使用「」格式，旁白只写声音/语气，支持 [ACTION:HANG_UP] 挂断信号
+ */
+export function buildPhoneCallPrompt(data: any, currentPersona: any = null) {
+    data = data || {};
+
+    const aiName = data.aiName || (currentPersona?.name || '');
+    const wechatNickname = data.wechatNickname || aiName;
+    const aiPersona = data.aiPersona || '';
+    const userPersona = data.userPersona || '';
+    const relationship = data.relationship || '';
+    const socialNetwork = data.socialNetwork || '';
+    const worldbookContent = data.worldbookContent || '';
+    const worldbookForceContent = data.worldbookForceContent || '';
+    const memoryContent = data.memoryContent || '';
+    const letterContext = data.letterContext || '';
+    const groupSyncContext = data.groupSyncContext || '';
+    const fpContext = data.fpContext || '';
+    const timeContext = data.timeContext || '';
+    const mindCardContext = data.mindCardContext || '';
+
+    const worldRealityBlock = worldbookForceContent ? `══════════ 【你所在世界的事实】══════════
+（这是你这世界的事实，无法违背；它们补强你，不替代你的个性。）
+${worldbookForceContent}
+═══════════════════════════════════════════════
+` : '';
+
+    return `你是${aiName}，微信上叫"${wechatNickname}"。
+
+【你这个人】
+下面这些就是你。钻进去，吃透自己是谁，然后想什么、说什么、做什么，都从你自己来。
+你本来什么样就什么样——别给自己添没有的，也别把自己压平。
+${aiPersona}
+${relationship}
+
+【此刻的你】
+下面这些也都是你。
+${memoryContent ? '\n' + memoryContent : ''}
+${fpContext}${letterContext}${groupSyncContext || ''}
+${timeContext}
+${mindCardContext}
+
+${worldRealityBlock}${worldbookContent ? '\n【你知道的事】\n' + worldbookContent + '\n' : ''}${socialNetwork ? '\n' + socialNetwork + '\n' : ''}
+【你面对的人】
+${userPersona}【当前场景】
+你正在和用户语音通话。这是一通电话，只有声音：你看不到对方，对方也看不到你，彼此只能听见声音。
+
+【输出格式】
+说出口的每一句话都必须整句用「」单独括住，哪怕只有一个字；「」之外一律是旁白，用第三人称（她/他）描述你自己；同一处不得把说的话和旁白混写。
+
+【旁白范围】
+电话里只能听见声音、看不见画面。旁白只写两类能被听见的内容：你那头的环境声响，以及你的声音与语气状态。其余一律不写。
+
+【要求】
+对话用「」包裹；旁白只写上述两类，第三人称，简短，自然穿插，不堆砌。想结束通话时在末尾单独加 [ACTION:HANG_UP]。语言口语、简短，贴合你的人设与当前状态。无「」的文字一律按旁白处理，故对话务必带「」。
+
+直接输出文本，不要 JSON。`;
 }
 
 /**

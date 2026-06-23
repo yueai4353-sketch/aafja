@@ -8,8 +8,8 @@ import { HuajiApp as HuajiScreen } from './apps/HuajiApp';
 import { CreatePersonaApp as CreatePersonaScreen } from './apps/CreatePersonaApp';
 import { WorldbookApp as WorldbookScreen } from './apps/WorldbookApp';
 import { ThemeApp as ThemeScreen } from './apps/ThemeApp';
-import { buildFullAIContext } from './utils/aiContext';
-import { BackgroundLines, IconWechat, IconCalendar, IconWeather, IconHuaji, IconWorldbook, IconDevice, IconCompanion, IconSettings, IconTheme, AppIcon, CurrentTime, SortableAppIcon, IconAccounting, IconSecret, IconMessage, IconPeriod, IconCangxu, IconMemories } from './components';
+import { buildFullAIContext, buildPhoneCallPrompt } from './utils/aiContext';
+import { BackgroundLines, IconWechat, IconCalendar, IconWeather, IconHuaji, IconWorldbook, IconDevice, IconCompanion, IconSettings, IconTheme, AppIcon, CurrentTime, SortableAppIcon, IconAccounting, IconSecret, IconMessage, IconPeriod, IconCangxu, IconMemories, IconYouAndMe } from './components';
 import {
   DndContext,
   closestCenter,
@@ -81,6 +81,7 @@ import {
 })();
 
 import { MemoryApp as MemoryScreen } from './apps/MemoryApp';
+import { YouAndMeApp as YouAndMeScreen } from './apps/YouAndMeApp';
 
 const CalendarWidget = () => {
   const [view, setView] = useState<'minimal' | 'full'>('minimal');
@@ -185,7 +186,7 @@ const CalendarWidget = () => {
 };
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook' | 'theme' | 'memory'>('home');
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook' | 'theme' | 'memory' | 'youandme'>('home');
   const [myProfile, setMyProfile] = useState<any>(() => {
     const defaultProfile = {
       name: "江明礼",
@@ -341,7 +342,7 @@ export default function App() {
         { id: '11', iconKey: 'memories', label: '记忆', screen: 'memory' },
         { id: '10', iconKey: 'cangxu', label: '藏叙', screen: null },
       { id: '1', iconKey: 'weather', label: '天气', screen: null },
-      { id: '2', iconKey: 'calendar', label: '日历', screen: null },
+{ id: '2', iconKey: 'calendar', label: '你我之间', screen: 'youandme' },
       { id: '3', iconKey: 'wechat', label: '微信', screen: 'wechat' },
       { id: '4', iconKey: 'huaji', label: '花集', screen: 'huaji' },
       { id: '5', iconKey: 'worldbook', label: '世界书', screen: 'worldbook' },
@@ -355,6 +356,11 @@ export default function App() {
         if (!parsed.find((a: any) => a.iconKey === 'cangxu')) {
           parsed.unshift({ id: '10', iconKey: 'cangxu', label: '藏叙', screen: null });
         }
+        // 用代码中的 defaultApps 覆盖缓存里的 label/screen，保证改动立即生效
+        parsed = parsed.map((a: any) => {
+          const def = defaultApps.find((d: any) => d.iconKey === a.iconKey);
+          return def ? { ...a, label: def.label, screen: def.screen } : a;
+        });
         return parsed;
       } catch (e) {}
     }
@@ -432,7 +438,7 @@ export default function App() {
 
   const iconMap: Record<string, React.ReactNode> = {
     weather: <IconWeather />,
-    calendar: <IconCalendar />,
+    calendar: <IconYouAndMe />,
     wechat: <IconWechat />,
     huaji: <IconHuaji />,
     worldbook: <IconWorldbook />,
@@ -517,7 +523,10 @@ export default function App() {
           text: msg.text,
           isMe: msg.isMe,
           timestamp: msg.fullTimestamp,
-          msgType: msg.msgType
+          fullTimestamp: msg.fullTimestamp,
+          msgType: msg.msgType,
+          mindCard: msg.mindCard ?? null,
+          recalledContent: msg.recalledContent ?? null,
         });
       });
       // Sort messages within each chat by timestamp
@@ -589,7 +598,10 @@ export default function App() {
       recentMessages.push(...extraMessages);
       recentMessages.push({ isSystem: true, text: '==== 当前最新对话 ====' });
     }
-    recentMessages.push(...msgs.slice(-mandatoryMemSize));
+    // 通话系统标记（PHONE_CALL_START/HEART/END）不计入上下文条数，只取真正的对话消息
+    const phoneCallSystemTexts = ['[PHONE_CALL_START]', '[PHONE_CALL_HEART]'];
+    const dialogueMsgs = msgs.filter(m => !(m.msgType === 'system' && phoneCallSystemTexts.includes(m.text)));
+    recentMessages.push(...dialogueMsgs.slice(-mandatoryMemSize));
     
     const context = await buildFullAIContext(friend, friendId, myProfile, recentMessages);
     if (!context || !(context as any).prompt) {
@@ -606,14 +618,51 @@ export default function App() {
         if (settingsRec.value.useCoT) useCoT = true;
         if (settingsRec.value.cotStyle) cotStyle = settingsRec.value.cotStyle;
     }
-    
-    // 构建最终 prompt，如果开启了线上思维连则追加 CoT 指令
-    let finalPrompt = (context as any).prompt as string;
-    if (useCoT) {
-      const cotInstruction = cotStyle.trim()
-        ? cotStyle.trim()
-        : '在每次回复之前，你必须先输出 <thinking> 标签，在其中深入分析角色心理、对话情境和最合适的回应方式，然后输出 </thinking>，最后再给出最终回复内容。';
-      finalPrompt = `${finalPrompt}\n\n[线上思维链指令]\n${cotInstruction}`;
+
+    // 检测是否处于语音通话场景（最近消息中含有 PHONE_CALL_START 或 PHONE_CALL_HEART）
+    const isPhoneCallScene = msgs.slice(-20).some(
+      m => m.msgType === 'system' && (m.text === '[PHONE_CALL_START]' || m.text === '[PHONE_CALL_HEART]')
+    );
+
+    // 构建最终 prompt
+    let finalPrompt: string;
+    if (isPhoneCallScene) {
+      // 通话场景：使用电话专用 prompt
+      const disableTimeAwareness = settingsRec?.value?.disableTimeAwareness || false;
+      const nowTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+      const timeContextValue = disableTimeAwareness
+        ? '【时间感知说明】请忽略现实中的真实系统时间，根据聊天记录中的上下文推算当前时间线。\n'
+        : `【系统当前时间】${nowTime}\n`;
+      const formattedHistory = recentMessages.map((msg: any) => {
+        if (msg.msgType === 'system') return `【系统】${msg.text}`;
+        if (msg.msgType === 'narrator') {
+          // 旁白：区分是用户还是 AI 说的
+          return msg.isMe
+            ? `${myProfile?.name || '我'}（旁白）：${msg.text}`
+            : `${friend.name}（旁白）：${msg.text}`;
+        }
+        return `${msg.isMe ? myProfile?.name || '我' : friend.name}: ${msg.text || ''}`;
+      }).join('\n');
+      finalPrompt = buildPhoneCallPrompt({
+        aiName: friend.name,
+        wechatNickname: friend.wechat_remark || friend.name,
+        aiPersona: (context as any).aiPersonaInfo || '',
+        userPersona: (context as any).userPersonaInfo || '',
+        relationship: (context as any).relationshipInfo || '',
+        socialNetwork: (context as any).socialNetworkContent || '',
+        worldbookContent: (context as any).worldbookContent || '',
+        memoryContent: (context as any).memoryContent || '',
+        letterContext: `\n【最近聊天记录】\n${formattedHistory}\n`,
+        timeContext: timeContextValue,
+      }, friend);
+    } else {
+      finalPrompt = (context as any).prompt as string;
+      if (useCoT) {
+        const cotInstruction = cotStyle.trim()
+          ? cotStyle.trim()
+          : '在每次回复之前，你必须先输出 <thinking> 标签，在其中深入分析角色心理、对话情境和最合适的回应方式，然后输出 </thinking>，最后再给出最终回复内容。';
+        finalPrompt = `${finalPrompt}\n\n[线上思维链指令]\n${cotInstruction}`;
+      }
     }
 
     showGlobalToast('AI 正在思考...');
@@ -1122,7 +1171,8 @@ export default function App() {
                         id: newId as number, 
                         text: msg.text, 
                         isMe: false, 
-                        timestamp: ts, 
+                        timestamp: ts,
+                        fullTimestamp: ts,
                         msgType: msg.msgType 
                     };
                     if (msg.mindCard) stateMsg.mindCard = msg.mindCard;
@@ -1408,6 +1458,14 @@ export default function App() {
               key="memory"
               onBack={() => setCurrentScreen('home')}
               personas={personas}
+            />
+          )}
+          {currentScreen === 'youandme' && (
+            <YouAndMeScreen 
+              key="youandme"
+              onClose={() => setCurrentScreen('home')}
+              personas={personas}
+              myProfile={myProfile}
             />
           )}
         </AnimatePresence>
