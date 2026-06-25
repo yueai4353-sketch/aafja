@@ -203,6 +203,29 @@ async function startServer() {
     }
   });
 
+  // Weather proxy route — avoids browser CORS restrictions with wttr.in
+  app.get("/api/weather", async (req, res) => {
+    const city = (req.query.city as string || '').trim();
+    if (!city) {
+      return res.status(400).json({ error: '缺少 city 参数' });
+    }
+    try {
+      const url = `https://wttr.in/${encodeURIComponent(city)}?format=j1`;
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'curl/7.68.0' }
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        return res.status(response.status).json({ error: `wttr.in 返回错误: ${response.status} ${text.slice(0, 200)}` });
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (err: any) {
+      console.error('Weather proxy error:', err);
+      res.status(500).json({ error: err?.message || '天气代理请求失败' });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

@@ -9,9 +9,33 @@ export interface ScheduleItem {
   text: string;  // 事项描述
 }
 
-const KEY_MY_SCHEDULE = 'youandme_my_schedule';
-const KEY_OTHER_SCHEDULE = 'youandme_other_schedule';
+/**
+ * 选中人设的精简快照（只保留接电话提示词需要的字段，节省存储和 token）
+ */
+export interface PersonaSnapshot {
+  id: string;
+  name: string;
+  // 简单模式
+  bio?: string;
+  // 详细模式
+  mode?: string;
+  gender?: string;
+  age?: string;
+  birthday?: string;
+  identity?: string;
+  personality?: string;
+  appearance?: string;
+  relationship?: string;
+  communication_style?: string;
+  lifestyle?: string;
+  background?: string;
+  nsfw_info?: string;
+}
+
+const KEY_MY_SCHEDULE      = 'youandme_my_schedule';
+const KEY_OTHER_SCHEDULE   = 'youandme_other_schedule';
 const KEY_SELECTED_PERSONA = 'youandme_selected_persona_id';
+const KEY_PERSONA_SNAPSHOT = 'youandme_persona_snapshot';
 
 // ---- 我的日程 ----
 export function loadMySchedule(): ScheduleItem[] {
@@ -48,4 +72,49 @@ export function loadSelectedPersonaId(): string | null {
 
 export function saveSelectedPersonaId(id: string): void {
   localStorage.setItem(KEY_SELECTED_PERSONA, id);
+}
+
+// ---- 选中人设的快照（选角时保存，供接电话提示词读取，节省 token） ----
+export function loadPersonaSnapshot(): PersonaSnapshot | null {
+  try {
+    const raw = localStorage.getItem(KEY_PERSONA_SNAPSHOT);
+    return raw ? (JSON.parse(raw) as PersonaSnapshot) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function savePersonaSnapshot(persona: any): void {
+  if (!persona) return;
+  const snapshot: PersonaSnapshot = {
+    id: persona.id,
+    name: persona.name,
+    bio: persona.bio,
+    mode: persona.mode,
+    gender: persona.gender,
+    age: persona.age,
+    birthday: persona.birthday,
+    identity: persona.identity,
+    personality: persona.personality,
+    appearance: persona.appearance,
+    relationship: persona.relationship,
+    communication_style: persona.communication_style,
+    lifestyle: persona.lifestyle,
+    background: persona.background,
+    nsfw_info: persona.nsfw_info,
+  };
+  // 只保留有值的字段，减少存储体积
+  (Object.keys(snapshot) as (keyof PersonaSnapshot)[]).forEach(k => {
+    if (snapshot[k] === undefined || snapshot[k] === null || snapshot[k] === '') {
+      delete snapshot[k];
+    }
+  });
+  localStorage.setItem(KEY_PERSONA_SNAPSHOT, JSON.stringify(snapshot));
+}
+
+// ---- 工具函数：将日程数组序列化为紧凑文本（用于注入提示词） ----
+export function scheduleItemsToText(items: ScheduleItem[]): string {
+  return items
+    .map(i => `${i.date ? i.date + '/' : ''}${i.time ? i.time + ' ' : ''}${i.text}`)
+    .join('\n');
 }

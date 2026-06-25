@@ -9,7 +9,10 @@ import { CreatePersonaApp as CreatePersonaScreen } from './apps/CreatePersonaApp
 import { WorldbookApp as WorldbookScreen } from './apps/WorldbookApp';
 import { ThemeApp as ThemeScreen } from './apps/ThemeApp';
 import { buildFullAIContext, buildPhoneCallPrompt } from './utils/aiContext';
+import { getWoKongSystemPrompt, tickProp, buildEntryNarration, getActiveRecord } from './utils/woKongManager';
+import { loadMySchedule, loadOtherSchedule, loadPersonaSnapshot, scheduleItemsToText } from './db/youandme';
 import { BackgroundLines, IconWechat, IconCalendar, IconWeather, IconHuaji, IconWorldbook, IconDevice, IconCompanion, IconSettings, IconTheme, AppIcon, CurrentTime, SortableAppIcon, IconAccounting, IconSecret, IconMessage, IconPeriod, IconCangxu, IconMemories, IconYouAndMe } from './components';
+import { WeatherApp as WeatherScreen } from './apps/WeatherApp';
 import {
   DndContext,
   closestCenter,
@@ -186,7 +189,7 @@ const CalendarWidget = () => {
 };
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook' | 'theme' | 'memory' | 'youandme'>('home');
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook' | 'theme' | 'memory' | 'youandme' | 'weather'>('home');
   const [myProfile, setMyProfile] = useState<any>(() => {
     const defaultProfile = {
       name: "江明礼",
@@ -341,7 +344,7 @@ export default function App() {
       const defaultApps = [
         { id: '11', iconKey: 'memories', label: '记忆', screen: 'memory' },
         { id: '10', iconKey: 'cangxu', label: '藏叙', screen: null },
-      { id: '1', iconKey: 'weather', label: '天气', screen: null },
+      { id: '1', iconKey: 'weather', label: '天气', screen: 'weather' },
 { id: '2', iconKey: 'calendar', label: '你我之间', screen: 'youandme' },
       { id: '3', iconKey: 'wechat', label: '微信', screen: 'wechat' },
       { id: '4', iconKey: 'huaji', label: '花集', screen: 'huaji' },
@@ -619,10 +622,36 @@ export default function App() {
         if (settingsRec.value.cotStyle) cotStyle = settingsRec.value.cotStyle;
     }
 
-    // 检测是否处于语音通话场景（最近消息中含有 PHONE_CALL_START 或 PHONE_CALL_HEART）
-    const isPhoneCallScene = msgs.slice(-20).some(
-      m => m.msgType === 'system' && (m.text === '[PHONE_CALL_START]' || m.text === '[PHONE_CALL_HEART]')
-    );
+    // 检测是否处于语音通话场景：最近 contextMemSize 条里有 PHONE_CALL_START 或 PHONE_CALL_HEART，
+    // 且在那之后没有出现 PHONE_CALL_END（挂断后不应再视为通话中）
+    const isPhoneCallScene = (() => {
+      const recent = msgs.slice(-contextMemSize);
+      // 找到最后一个 START 或 HEART 的位置
+      let lastCallSignalIdx = -1;
+      for (let i = recent.length - 1; i >= 0; i--) {
+        const m = recent[i];
+        if (m.msgType === 'system' && (m.text === '[PHONE_CALL_START]' || m.text === '[PHONE_CALL_HEART]')) {
+          lastCallSignalIdx = i;
+          break;
+        }
+      }
+      if (lastCallSignalIdx === -1) return false;
+      // 检查该位置之后是否有 PHONE_CALL_END，有则说明通话已结束
+      const hasEndAfter = recent.slice(lastCallSignalIdx + 1).some(
+        m => m.msgType === 'system' && typeof m.text === 'string' && m.text.startsWith('[PHONE_CALL_END:')
+      );
+      return !hasEndAfter;
+    })();
+
+    // 检测是否刚刚结束通话（最近消息中含有 PHONE_CALL_END，且不在通话中）
+    const recentCallEndMsg = !isPhoneCallScene
+      ? msgs.slice(-contextMemSize).reverse().find(
+          m => m.msgType === 'system' && typeof m.text === 'string' && m.text.startsWith('[PHONE_CALL_END:')
+        )
+      : null;
+    const recentCallEndDuration = recentCallEndMsg
+      ? (recentCallEndMsg.text.match(/^\[PHONE_CALL_END:([\d:]+)\]$/)?.[1] || '')
+      : '';
 
     // 构建最终 prompt
     let finalPrompt: string;
@@ -643,6 +672,41 @@ export default function App() {
         }
         return `${msg.isMe ? myProfile?.name || '我' : friend.name}: ${msg.text || ''}`;
       }).join('\n');
+      // 读取你我之间的日程和人设快照，注入到通话提示词（节省 token：只读必要字段）
+      const _myScheduleItems = loadMySchedule();
+      const _otherScheduleItems = loadOtherSchedule();
+      const _personaSnapshot = loadPersonaSnapshot();
+      // 构建日程上下文文本（仅在有数据时才注入，避免空白浪费 token）
+      const myScheduleText = _myScheduleItems.length > 0
+        ? `【用户日程】\n${scheduleItemsToText(_myScheduleItems)}`
+        : '';
+      const otherScheduleText = _otherScheduleItems.length > 0
+        ? `【${friend.name}的日程】\n${scheduleItemsToText(_otherScheduleItems)}`
+        : '';
+      // 构建人设快照文本（优先用快照，快照不存在则跳过，aiPersonaInfo 已由 buildFullAIContext 提供）
+      let snapshotPersonaText = '';
+      if (_personaSnapshot && _personaSnapshot.id === friendId) {
+        // 只在快照属于当前对话角色时才注入，避免串角
+        const s = _personaSnapshot;
+        const parts: string[] = [];
+        if (s.mode === 'simple' || !s.mode) {
+          if (s.bio) parts.push(`简介：${s.bio}`);
+        } else {
+          if (s.gender) parts.push(`性别：${s.gender}`);
+          if (s.age) parts.push(`年龄：${s.age}`);
+          if (s.identity) parts.push(`身份：${s.identity}`);
+          if (s.personality) parts.push(`性格：${s.personality}`);
+          if (s.relationship) parts.push(`与用户关系：${s.relationship}`);
+          if (s.communication_style) parts.push(`说话风格：${s.communication_style}`);
+          if (s.nsfw_info) parts.push(`私密特质：${s.nsfw_info}`);
+        }
+        if (parts.length > 0) {
+          snapshotPersonaText = `【${s.name}人设补充（来自你我之间绑定）】\n${parts.join('\n')}`;
+        }
+      }
+      const scheduleContext = [myScheduleText, otherScheduleText, snapshotPersonaText]
+        .filter(Boolean)
+        .join('\n\n');
       finalPrompt = buildPhoneCallPrompt({
         aiName: friend.name,
         wechatNickname: friend.wechat_remark || friend.name,
@@ -654,15 +718,29 @@ export default function App() {
         memoryContent: (context as any).memoryContent || '',
         letterContext: `\n【最近聊天记录】\n${formattedHistory}\n`,
         timeContext: timeContextValue,
+        scheduleContext: scheduleContext || undefined,
       }, friend);
     } else {
       finalPrompt = (context as any).prompt as string;
+      // 如果刚刚结束通话，向 AI 注入通话结束上下文，让 AI 知道电话已挂断
+      if (recentCallEndMsg) {
+        const callEndHint = recentCallEndDuration
+          ? `\n\n【场景补充】你们刚刚通了一个电话（通话时长 ${recentCallEndDuration}），电话已经挂断，现在回到了微信文字聊天。请基于这通电话结束后的状态来回复。`
+          : `\n\n【场景补充】你们刚刚通了一个电话，电话已经挂断，现在回到了微信文字聊天。请基于这通电话结束后的状态来回复。`;
+        finalPrompt = `${finalPrompt}${callEndHint}`;
+      }
       if (useCoT) {
         const cotInstruction = cotStyle.trim()
           ? cotStyle.trim()
           : '在每次回复之前，你必须先输出 <thinking> 标签，在其中深入分析角色心理、对话情境和最合适的回应方式，然后输出 </thinking>，最后再给出最终回复内容。';
         finalPrompt = `${finalPrompt}\n\n[线上思维链指令]\n${cotInstruction}`;
       }
+    }
+
+    // 注入我控道具提示词
+    const woKongPrompt = getWoKongSystemPrompt(String(friendId));
+    if (woKongPrompt) {
+      finalPrompt = `${finalPrompt}${woKongPrompt}`;
     }
 
     showGlobalToast('AI 正在思考...');
@@ -1181,6 +1259,77 @@ export default function App() {
                         [friendId]: [...existing, stateMsg] 
                     };
                 });
+
+                // ── 状态机推进：每条 AI 消息（非 system）触发 tickProp ──
+                if (msg.msgType !== 'system') {
+                    const tickResult = tickProp(String(friendId), 'ai', msg.text || '');
+                    if (tickResult.action === 'expired' || tickResult.action === 'pendingTimeout') {
+                        // 退场 / 超时旁白
+                        const narrationTs = ts + 1;
+                        const narrationObj: any = {
+                            contactId: friendId,
+                            fullTimestamp: narrationTs,
+                            text: tickResult.narration,
+                            isMe: false,
+                            msgType: 'narrator',
+                        };
+                        try {
+                            const narId = await ChatDB.messages.add(narrationObj);
+                            setWechatChats(prev => {
+                                const existing = prev[friendId] || [];
+                                return {
+                                    ...prev,
+                                    [friendId]: [...existing, {
+                                        id: narId as number,
+                                        text: tickResult.narration,
+                                        isMe: false,
+                                        timestamp: narrationTs,
+                                        fullTimestamp: narrationTs,
+                                        msgType: 'narrator',
+                                    }],
+                                };
+                            });
+                        } catch (narErr) {
+                            console.error('[WoKong] Failed to save narration', narErr);
+                        }
+                    } else if (tickResult.action === 'activated') {
+                        // pending → active：发入场触发旁白
+                        const activatedRecord = getActiveRecord(String(friendId));
+                        const snap = activatedRecord?.itemSnapshot as any;
+                        const activationNarration = buildEntryNarration(
+                            snap?.name || '',
+                            snap?.emoji || '',
+                            snap?.entryNarration || '',
+                        );
+                        const narrationTs = ts + 1;
+                        const narrationObj: any = {
+                            contactId: friendId,
+                            fullTimestamp: narrationTs,
+                            text: activationNarration,
+                            isMe: false,
+                            msgType: 'narrator',
+                        };
+                        try {
+                            const narId = await ChatDB.messages.add(narrationObj);
+                            setWechatChats(prev => {
+                                const existing = prev[friendId] || [];
+                                return {
+                                    ...prev,
+                                    [friendId]: [...existing, {
+                                        id: narId as number,
+                                        text: activationNarration,
+                                        isMe: false,
+                                        timestamp: narrationTs,
+                                        fullTimestamp: narrationTs,
+                                        msgType: 'narrator',
+                                    }],
+                                };
+                            });
+                        } catch (narErr) {
+                            console.error('[WoKong] Failed to save activation narration', narErr);
+                        }
+                    }
+                }
             } catch (err) {
                 console.error("Failed to save AI message", err);
             }
@@ -1329,6 +1478,28 @@ export default function App() {
               consoleLogs={consoleLogs}
               onClearConsoleLogs={() => setConsoleLogs([])}
               onSendMessage={(friendId, text, isMe, msgType, recalledContent) => {
+                // narrator 类型：按段落拆分，每段独立存一条记录，确保可单独删除
+                if (msgType === 'narrator' && !recalledContent) {
+                  const paragraphs = text.split(/\n+/).map((s: string) => s.trim()).filter((s: string) => s);
+                  const segments = paragraphs.length > 1 ? paragraphs : [text];
+                  const baseTs = Date.now();
+                  segments.forEach((seg, i) => {
+                    const ts = baseTs + i;
+                    ChatDB.messages.add({
+                      contactId: friendId,
+                      fullTimestamp: ts,
+                      text: seg,
+                      isMe: isMe,
+                      msgType: 'narrator',
+                    }).then((newId) => {
+                      setWechatChats(prev => {
+                        const msgs = prev[friendId] || [];
+                        return { ...prev, [friendId]: [...msgs, { id: newId, text: seg, isMe, timestamp: ts, msgType: 'narrator' }] };
+                      });
+                    }).catch(err => console.error("Failed to save narrator segment", err));
+                  });
+                  return;
+                }
                 const ts = Date.now();
                 ChatDB.messages.add({
                   contactId: friendId,
@@ -1386,6 +1557,17 @@ export default function App() {
               onClearChat={(friendId) => {
                 ChatDB.messages.where('contactId').equals(friendId).delete().then(() => {
                   ChatDB.memories.where('contactId').equals(friendId).delete().then(() => {
+                    // 重置道具计数器：消息被删后，各种计数应归零/恢复初始值
+                    const activeRec = getActiveRecord(friendId);
+                    if (activeRec) {
+                      const item = activeRec.itemSnapshot as any;
+                      const initialCount = item?.end?.msgCount ?? null;
+                      activeRec.msgCounterRemaining = initialCount;
+                      activeRec.endHitCounter = 0;
+                      activeRec.triggerHitCounter = 0;
+                      activeRec.pendingMsgCounter = 0;
+                      localStorage.setItem(`wokong_active_${friendId}`, JSON.stringify(activeRec));
+                    }
                     setWechatChats(prev => {
                       const newChats = { ...prev };
                       delete newChats[friendId];
@@ -1466,6 +1648,12 @@ export default function App() {
               onClose={() => setCurrentScreen('home')}
               personas={personas}
               myProfile={myProfile}
+            />
+          )}
+          {currentScreen === 'weather' && (
+            <WeatherScreen 
+              key="weather"
+              onBack={() => setCurrentScreen('home')}
             />
           )}
         </AnimatePresence>

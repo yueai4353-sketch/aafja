@@ -69,6 +69,103 @@
   100% { transform: rotate(-1.5deg); }
 }
 
+/* ============ 我谕常驻 chip ============ */
+.wuyu-active-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 0.5px solid rgba(0, 0, 0, 0.06);
+    font-size: 12px;
+    color: #333;
+    user-select: none;
+    min-height: 20px;
+    cursor: pointer;
+}
+.wuyu-bar-emoji { font-size: 13px; flex-shrink: 0; }
+.wuyu-bar-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    color: #666;
+}
+.wuyu-active-bar.is-pending .wuyu-bar-text {
+    font-style: italic;
+    color: #999;
+}
+.wuyu-active-bar.is-active .wuyu-bar-text { color: #333; }
+.wuyu-bar-close {
+    border: none;
+    background: none;
+    font-size: 14px;
+    color: #999;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.wuyu-bar-close:active { color: #333; }
+.phone-frame.night-mode .wuyu-active-bar {
+    background: rgba(44, 44, 46, 0.85);
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+.phone-frame.night-mode .wuyu-active-bar.is-active .wuyu-bar-text { color: #ddd; }
+.phone-frame.night-mode .wuyu-active-bar.is-pending .wuyu-bar-text { color: #888; }
+.phone-frame.night-mode .wuyu-bar-close { color: #777; }
+
+.chat-window:has(#offline-meeting-card:not([style*="display: none"])) .wuyu-active-bar {
+    position: absolute;
+    top: 120px;
+    left: 0;
+    right: 0;
+    z-index: 1900;
+}
+.chat-window.has-inject-bar:has(#offline-meeting-card:not([style*="display: none"])) .wuyu-active-bar {
+    top: 150px;
+}
+
+/* ============ 我谕道具卡片旁白（phase 4） ============ */
+.chat-message.narrator-message.wuyu-card-narrator {
+    margin: 12px 0 !important;
+}
+.chat-message.narrator-message.wuyu-card-narrator .narrator-content {
+    display: inline-flex !important;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.96) !important;
+    border: 1px solid #000;
+    border-radius: 999px !important;
+    padding: 6px 14px !important;
+    font-style: normal !important;
+    color: #000 !important;
+    font-size: 12px !important;
+    max-width: 90% !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+}
+.chat-message.narrator-message.wuyu-card-narrator .narrator-content::before,
+.chat-message.narrator-message.wuyu-card-narrator .narrator-content::after {
+    content: '';
+    display: inline-block;
+    width: 64px;
+    height: 14px;
+    flex-shrink: 0;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+}
+.chat-message.narrator-message.wuyu-card-narrator .narrator-content::before {
+    margin-right: 10px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 14'><path d='M5 11 C-1 6 1 3 5 6 C9 3 11 6 5 11 Z' fill='black'/><path d='M20 7 L14 2 L14 12 Z' fill='black'/><path d='M20 7 L26 2 L26 12 Z' fill='black'/><circle cx='20' cy='7' r='1.5' fill='black'/><path d='M36 7 L30 2 L30 12 Z' fill='black'/><path d='M36 7 L42 2 L42 12 Z' fill='black'/><circle cx='36' cy='7' r='1.5' fill='black'/><line x1='46' y1='7' x2='80' y2='7' stroke='black' stroke-width='1' stroke-dasharray='2,2'/></svg>");
+}
+.chat-message.narrator-message.wuyu-card-narrator .narrator-content::after {
+    margin-left: 10px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 14'><line x1='0' y1='7' x2='34' y2='7' stroke='black' stroke-width='1' stroke-dasharray='2,2'/><path d='M44 7 L38 2 L38 12 Z' fill='black'/><path d='M44 7 L50 2 L50 12 Z' fill='black'/><circle cx='44' cy='7' r='1.5' fill='black'/><path d='M60 7 L54 2 L54 12 Z' fill='black'/><path d='M60 7 L66 2 L66 12 Z' fill='black'/><circle cx='60' cy='7' r='1.5' fill='black'/><path d='M75 11 C69 6 71 3 75 6 C79 3 81 6 75 11 Z' fill='black'/></svg>");
+}
+
 /* 聊天图片消息气泡样式（嵌入在现有气泡容器内） */
 .inner-bubble-image {
   max-width: 200px;

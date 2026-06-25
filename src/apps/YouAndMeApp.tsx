@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { ChevronLeft, Home, HelpCircle, User, MapPin, Plus, Store, Edit3, Filter, MessageSquare, Image as ImageIcon, RefreshCw, X, Loader2, Trash2 } from 'lucide-react';
+import { AppDB } from '../db';
 import {
   buildWorldbookText,
   buildRecentChatText,
@@ -14,6 +15,7 @@ import {
   saveOtherSchedule,
   loadSelectedPersonaId,
   saveSelectedPersonaId,
+  savePersonaSnapshot,
   type ScheduleItem,
 } from '../db/youandme';
 
@@ -41,6 +43,21 @@ export const YouAndMeApp: React.FC<YouAndMeAppProps> = ({ onClose, personas = []
   const [editingItem, setEditingItem] = useState<{index:number;date:string;time:string;text:string} | null>(null);
 
   const selectedPersona = personas.find(p => p.id === selectedPersonaId) || null;
+
+  // 天气数据
+  const [weatherText, setWeatherText] = useState<string>('');
+  useEffect(() => {
+    AppDB.appSettings.get('weather_display_data').then(rec => {
+      if (!rec?.value) return;
+      const d = rec.value;
+      const today = d.forecast?.[0];
+      if (today) {
+        setWeatherText(`今日天气 ${today.high}°/${today.low}° ${today.icon}`);
+      } else if (d.currentTemp !== null && d.currentTemp !== undefined) {
+        setWeatherText(`当前 ${d.currentTemp}° ${d.currentIcon || ''}`);
+      }
+    });
+  }, []);
 
   // 日程变化时自动持久化
   useEffect(() => { saveMySchedule(myScheduleItems); }, [myScheduleItems]);
@@ -395,7 +412,7 @@ export const YouAndMeApp: React.FC<YouAndMeAppProps> = ({ onClose, personas = []
                      <div className="w-1.5 h-1.5 bg-[#ff8c8c] rounded-full"></div>
                      最新动态
                    </div>
-                   <span className="text-[10px] text-gray-300">今日天气 23-29° ☀️</span>
+                   <span className="text-[10px] text-gray-300">{weatherText || '今日天气 --'}</span>
                  </div>
                  <div className="p-3 flex items-center gap-3 bg-[#fcfcfc] relative">
                    <div className="w-5 h-5 rounded-full bg-[#ffe4e4] flex items-center justify-center flex-shrink-0">
@@ -496,6 +513,7 @@ export const YouAndMeApp: React.FC<YouAndMeAppProps> = ({ onClose, personas = []
                   onClick={() => {
                     setSelectedPersonaId(p.id);
                     saveSelectedPersonaId(p.id);
+                    savePersonaSnapshot(p);
                     setShowPersonaSelector(false);
                   }}
                 >

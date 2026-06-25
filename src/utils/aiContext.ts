@@ -228,6 +228,12 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
             }
             return `${msg.isMe ? myProfile?.name || '我' : persona.name}: [图片]`;
         }
+        // 表情包消息：text 格式为 [image:url] 或 [image:描述]，在历史记录中标记为 [表情包]
+        // 这样 AI 能正确理解对方发的是表情包而不是普通文字
+        const stickerMatch = text.match(/^\[image:([\s\S]+)\]$/);
+        if (stickerMatch) {
+            return `${msg.isMe ? myProfile?.name || '我' : persona.name}: [表情包]`;
+        }
         return `${msg.isMe ? myProfile?.name || '我' : persona.name}: ${text}`;
     }).join('\n');
     // 根据"停用时间感知"开关决定 timeContext 内容
@@ -293,11 +299,18 @@ export function buildPhoneCallPrompt(data: any, currentPersona: any = null) {
     const timeContext = data.timeContext || '';
     const mindCardContext = data.mindCardContext || '';
 
+    const scheduleContext = data.scheduleContext || '';
+
     const worldRealityBlock = worldbookForceContent ? `══════════ 【你所在世界的事实】══════════
 （这是你这世界的事实，无法违背；它们补强你，不替代你的个性。）
 ${worldbookForceContent}
 ═══════════════════════════════════════════════
 ` : '';
+
+    // 日程 & 人设快照块（有数据才注入，节省 token）
+    const scheduleBlock = scheduleContext
+        ? `\n【近期日程安排（来自"你我之间"）】\n${scheduleContext}\n`
+        : '';
 
     return `你是${aiName}，微信上叫"${wechatNickname}"。
 
@@ -313,7 +326,7 @@ ${memoryContent ? '\n' + memoryContent : ''}
 ${fpContext}${letterContext}${groupSyncContext || ''}
 ${timeContext}
 ${mindCardContext}
-
+${scheduleBlock}
 ${worldRealityBlock}${worldbookContent ? '\n【你知道的事】\n' + worldbookContent + '\n' : ''}${socialNetwork ? '\n' + socialNetwork + '\n' : ''}
 【你面对的人】
 ${userPersona}【当前场景】
@@ -500,6 +513,7 @@ ${emojiLine}语音：[voice:说的话]（只写说出口的话，别描述语气
 · 对话行：用「」包住，里面只放你这个角色亲口说出来的话。
 · 旁白行：不出现「」，写当下看得见、感觉得到的——你的动作神态、环境、身体感受、你眼里的 ta；别人说的话、各种声音也写进旁白（描述出来，不加「」）。
 对话和旁白怎么穿插、各多长，跟着此刻的你。旁白别替 ta 写下一步——那是 ta 的。
+旁白如果分多段，每段之间空一行（即 \\n\\n），这样每段会单独发出去。
 ${customStyle ? '\n【内容风格】\n' + customStyle + '\n' : ''}
 不用 emoji。
 
@@ -515,6 +529,7 @@ ${offlineMindCard}
 以下标记会出现在你收到的消息里（不是你输出的）：
 撤回：对方撤回时，你会在方括号里收到原内容、撤回了多少秒、和你当时的活跃状态。这是给你的语境数据，不是你亲眼看见，按你的状态自行决定有没有注意到。回复里不要出现"系统""提示"这类词。
 虚拟图片：对方消息里出现 "[图片]：具体内容" 时，是对方发的一张图，内容就是冒号后面那句。像真看见图一样回应，别说"收到描述"之类的话。
+表情包：对方消息里出现 "[表情包]" 时，表示对方发来了一张表情包（是一种带有情绪或梗意的趣味图片）。紧随其后通常会有一条系统说明告诉你这张表情包的内容和含义，结合那条说明来理解并自然回应，就像真的看见了这张表情包一样。
 [SILENT_CONTINUE] 不是对方说的话——它在没有对方实际消息的时候出现，不用回应它，也不要把它写进回复。
 
 直接以这一轮你选定的格式回复，开头不堆铺垫、不加标记。`;

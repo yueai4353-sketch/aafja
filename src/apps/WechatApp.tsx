@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Moon, Signal, Wifi, Battery, ChevronLeft, ChevronRight, User, MoreHorizontal, Plus, Send, Heart, MessageSquare, Phone, Disc, RefreshCcw, Layout, UserPlus, Users, Tag, Search, Camera, Snowflake, Edit2, CreditCard, X, Globe, Folder, Copy, Trash2, LayoutGrid, CornerUpLeft, ChevronsUpDown, Check, MapPin, ArrowRightLeft, Gift, Image as ImageIcon, Mic, Video, CloudMoon, Navigation, Shirt } from 'lucide-react';
+import { Moon, Signal, Wifi, Battery, ChevronLeft, ChevronRight, User, MoreHorizontal, Plus, Send, Heart, MessageSquare, Phone, Disc, RefreshCcw, Layout, UserPlus, Users, Tag, Search, Camera, Snowflake, Edit2, CreditCard, X, Globe, Folder, Copy, Trash2, LayoutGrid, CornerUpLeft, ChevronsUpDown, Check, MapPin, ArrowRightLeft, Gift, Image as ImageIcon, Mic, Video, CloudMoon, Navigation, Shirt, Smile } from 'lucide-react';
+import StickerPanel from '../components/StickerPanel';
+import WoYuModal from '../components/WoYuModal';
+import { getActiveRecord, revokeActiveProp, WoKongActiveRecord } from '../utils/woKongManager';
 import { CurrentTime, ToggleSwitch, useCurrentTime } from '../components';
 import { AppDB } from '../db';
 import { fileToBase64, analyzeImage, compressImage } from '../utils/vision';
@@ -1567,6 +1570,11 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
   const [isMultiSelecting, setIsMultiSelecting] = useState(false);
   const [selectedMsgIds, setSelectedMsgIds] = useState<number[]>([]);
   const [showPluginPanel, setShowPluginPanel] = useState(false);
+  // 我谕道具系统
+  const [showWoYuModal, setShowWoYuModal] = useState(false);
+  const [woYuActiveRecord, setWoYuActiveRecord] = useState<WoKongActiveRecord | null>(() =>
+    friend?.id ? getActiveRecord(String(friend.id)) : null
+  );
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showRedPacketModal, setShowRedPacketModal] = useState(false);
   const [showImageDescModal, setShowImageDescModal] = useState(false);
@@ -1612,6 +1620,10 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
   const callRejectTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [callInputText, setCallInputText] = useState('');
   const callInputRef = useRef<HTMLInputElement>(null);
+  const [callMsgActionMenu, setCallMsgActionMenu] = useState<{ msg: any } | null>(null);
+  const [callEditingMsg, setCallEditingMsg] = useState<any | null>(null);
+  const [callEditingText, setCallEditingText] = useState('');
+  const callMsgLongPressTimer = useRef<NodeJS.Timeout | null>(null);
   const [linkedWorldbooks, setLinkedWorldbooks] = useState<string[]>(friend?.linkedWorldbooks || friend?.linked_worldbooks || []);
   const [allWorldbooks, setAllWorldbooks] = useState<any[]>(() => {
     try {
@@ -1627,13 +1639,15 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
   };
 
   const [showTimestampMenu, setShowTimestampMenu] = useState(false);
+  const [timestampLongPressMsg, setTimestampLongPressMsg] = useState<any>(null);
   const timestampLongPressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const startTimestampLongPress = () => {
+  const startTimestampLongPress = (msg?: any) => {
     if (navigator.vibrate) {
       navigator.vibrate(50);
     }
     timestampLongPressTimerRef.current = setTimeout(() => {
+      setTimestampLongPressMsg(msg ?? null);
       setShowTimestampMenu(true);
       if (navigator.vibrate) {
         navigator.vibrate(50);
@@ -1655,6 +1669,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
   const [offlineDuration, setOfflineDuration] = useState<number>(0);
   const [isOfflineExpanded, setIsOfflineExpanded] = useState(true);
   const [isNarratorMode, setIsNarratorMode] = useState(false);
+  const [showStickerPanel, setShowStickerPanel] = useState(false);
 
   let currentOfflineLocation = friend.region ? `${friend.region} -> 附近` : '未知 -> 附近';
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -1882,6 +1897,58 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
         </div>
       )}
 
+      {/* 我谕常驻 chip */}
+      {woYuActiveRecord && (
+        <div
+          className={`wuyu-active-bar ${woYuActiveRecord.state === 'pending' ? 'is-pending' : 'is-active'}`}
+          onClick={() => setShowWoYuModal(true)}
+        >
+          <span className="wuyu-bar-emoji">
+            {woYuActiveRecord.state === 'pending' ? '⏳' : '✦'}
+          </span>
+          <span className="wuyu-bar-text">
+            {(() => {
+              const item = woYuActiveRecord.itemSnapshot as any;
+              const n = item?.name || '道具';
+              const e = item?.emoji ? item.emoji + ' ' : '';
+              if (woYuActiveRecord.state === 'pending') {
+                const need = item?.trigger?.hitCount ?? 1;
+                const got = (woYuActiveRecord as any).triggerHitCounter ?? 0;
+                return `${e}${n} · 待触发 ${got}/${need}`;
+              }
+              const end = item?.end || {};
+              if (end.mode === 'msgCount') {
+                const left = Math.max(0, (woYuActiveRecord as any).msgCounterRemaining ?? 0);
+                return `${e}${n} · 还剩 ${left} 条`;
+              }
+              if (end.mode === 'duration') {
+                const ref = (woYuActiveRecord as any).activatedAt ?? (woYuActiveRecord as any).deliveredAt;
+                const left = Math.max(0, (end.durationMin ?? 0) - Math.floor((Date.now() - ref) / 60000));
+                return `${e}${n} · 还剩 ${left} 分钟`;
+              }
+              if (end.mode === 'keyword') {
+                const need = end.hitCount ?? 1;
+                const got = (woYuActiveRecord as any).endHitCounter ?? 0;
+                return `${e}${n} · 命中 ${got}/${need}`;
+              }
+              return `${e}${n} · 生效中`;
+            })()}
+          </span>
+          <button
+            className="wuyu-bar-close"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!confirm('确定撤回当前生效的道具？')) return;
+              const narration = revokeActiveProp(String(friend.id));
+              setWoYuActiveRecord(null);
+              if (narration) onSendMessage(narration, 'system');
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Chat Area */}
       <div ref={chatAreaRef} className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-4 no-scrollbar">
         {messages.length === 0 && (
@@ -1982,7 +2049,14 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
               return (
                 <React.Fragment key={idx}>
                   {showTimeForCall && (
-                    <div className="chat-timestamp">
+                    <div
+                      className="chat-timestamp"
+                      onPointerDown={() => startTimestampLongPress(msg)}
+                      onPointerUp={cancelTimestampLongPress}
+                      onPointerLeave={cancelTimestampLongPress}
+                      onPointerCancel={cancelTimestampLongPress}
+                      onContextMenu={(e) => { e.preventDefault(); cancelTimestampLongPress(); }}
+                    >
                       {formatChatTimestamp(msg.fullTimestamp ?? msg.timestamp ?? 0)}
                     </div>
                   )}
@@ -2062,10 +2136,13 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
             const locMatch = cleanText.match(/\[LOCATION:(.*?)\]/);
             if (locMatch) {
                 cleanText = cleanText.replace(/\[LOCATION:.*?\]/g, '').trim();
+                // 如果去掉 LOCATION 标记后内容为空，且没有 mindCard，则不渲染这条消息
+                if (!cleanText && !extractedMindCard) return null;
             }
 
             let parts: any[] = [];
             if (msg.msgType === 'narrator') {
+                // 每条 narrator 记录已是单段，直接渲染，不再二次拆分
                 parts = [{ type: 'narrator', text: cleanText }];
             } else if (cleanText.startsWith('[红包]') || cleanText.startsWith('[TRANSFER:') || cleanText.match(/^\[image:.*\]$/) || cleanText.match(/^\[voice:.*\]$/)) {
                 parts = [{ type: 'special', text: cleanText }];
@@ -2134,7 +2211,14 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
             return (
               <React.Fragment key={idx}>
               {showTime && (
-                <div className="chat-timestamp">
+                <div
+                  className="chat-timestamp"
+                  onPointerDown={() => startTimestampLongPress(msg)}
+                  onPointerUp={cancelTimestampLongPress}
+                  onPointerLeave={cancelTimestampLongPress}
+                  onPointerCancel={cancelTimestampLongPress}
+                  onContextMenu={(e) => { e.preventDefault(); cancelTimestampLongPress(); }}
+                >
                   {formatChatTimestamp(msg.fullTimestamp ?? msg.timestamp ?? 0)}
                 </div>
               )}
@@ -2163,6 +2247,23 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                      if (group.type === 'narrator') {
                          const pIdx = 0;
                         const showDot = showMindCardSetting && !msg.isMe && extractedMindCard;
+                        const narratorText = group.parts[0].text as string;
+                        const isWuYuCard = /^\[.*(出现了|被收回了|的效果消退了)/.test(narratorText);
+                        if (isWuYuCard) {
+                          return (
+                            <div
+                              key={gIdx}
+                              className={`chat-message narrator-message wuyu-card-narrator w-full flex justify-center my-4 select-none ${isMultiSelecting ? 'pl-10' : ''}`}
+                              onPointerDown={() => { if (!isMultiSelecting) startLongPress(msg); }}
+                              onPointerUp={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                              onPointerLeave={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                              onPointerCancel={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                              onContextMenu={(e: any) => { e.preventDefault(); if (!isMultiSelecting) cancelLongPress(); }}
+                            >
+                              <span className="narrator-content">{narratorText.replace(/^\[|\]$/g, '')}</span>
+                            </div>
+                          );
+                        }
                         return (
                             <div 
                               key={gIdx} 
@@ -2190,7 +2291,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                                {showDot && (
                                   <div className="absolute top-1 -right-2 w-2.5 h-2.5 bg-pink-400 rounded-full shadow-[0_0_0_1.5px_transparent] z-10" />
                                )}
-                               <span className="whitespace-pre-wrap">{group.parts[0].text}</span>
+                               <span className="whitespace-pre-wrap">{narratorText}</span>
                              </span>
                            </div>
                         );
@@ -2245,17 +2346,32 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                           );
                         } else if (isImage) {
                           const desc = isImage[1];
+                          // 判断是否为真实图片 URL 或 base64（以 http/https/data: 开头）
+                          const isRealImage = /^(https?:\/\/|data:image\/)/.test(desc);
                           content = (
                             <div 
-                              className={`w-[180px] h-[180px] rounded-[10px] overflow-hidden select-none bg-[#e8e8e8] flex items-center justify-center ${isMultiSelecting ? '' : 'cursor-pointer active:brightness-95'}`}
-                              onClick={() => { if (!isMultiSelecting) setViewingImageDesc(desc); }}
+                              className={`rounded-[10px] overflow-hidden select-none bg-transparent flex items-center justify-center ${isMultiSelecting ? '' : 'cursor-pointer active:brightness-95'}`}
+                              style={{ maxWidth: '120px', maxHeight: '120px', minWidth: '40px', minHeight: '40px' }}
+                              onClick={() => { if (!isMultiSelecting && !isRealImage) setViewingImageDesc(desc); }}
                               onPointerDown={() => { if (!isMultiSelecting) startLongPress(msg); }}
                               onPointerUp={() => { if (!isMultiSelecting) cancelLongPress(); }}
                               onPointerLeave={() => { if (!isMultiSelecting) cancelLongPress(); }}
                               onPointerCancel={() => { if (!isMultiSelecting) cancelLongPress(); }}
                               onContextMenu={(e: any) => { e.preventDefault(); if (!isMultiSelecting) cancelLongPress(); }}
                             >
-                              <ImageIcon size={48} className="text-gray-400" strokeWidth={1.2} />
+                              {isRealImage ? (
+                                <img
+                                  src={desc}
+                                  alt="图片"
+                                  style={{ maxWidth: '120px', maxHeight: '120px', display: 'block', objectFit: 'contain' }}
+                                  onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
+                                />
+                              ) : (
+                                <div className="w-[100px] h-[100px] bg-[#e8e8e8] flex flex-col items-center justify-center gap-1.5 rounded-[10px]">
+                                  <ImageIcon size={28} className="text-gray-400" strokeWidth={1.2} />
+                                  {desc && <span className="text-[11px] text-gray-500 px-2 text-center leading-snug line-clamp-2">{desc}</span>}
+                                </div>
+                              )}
                             </div>
                           );
                         } else if (isRedPacket) {
@@ -2585,18 +2701,21 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                          </div>
                          <span className="text-[11px] text-gray-500 font-medium">重回</span>
                       </button>
-                      <button 
-                         onClick={() => {
-                           setShowPluginPanel(false);
-                           onSendMessage('「发起了语音通话」', 'system');
-                         }}
-                         className="flex flex-col items-center gap-1.5"
-                      >
-                         <div className="w-10 h-10 bg-[#f4f5f7] rounded-[14px] flex items-center justify-center active:bg-gray-200 transition-colors">
-                           <Mic className="text-[#64748b]" size={20} strokeWidth={1.5} />
-                         </div>
-                         <span className="text-[11px] text-gray-500 font-medium">语音</span>
-                      </button>
+       <button 
+          onClick={() => {
+            setShowPluginPanel(false);
+            setShowWoYuModal(true);
+          }}
+          className="flex flex-col items-center gap-1.5"
+       >
+          <div className="w-10 h-10 bg-[#f4f5f7] rounded-[14px] flex items-center justify-center active:bg-gray-200 transition-colors">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 19h18" />
+              <path d="M3 19L6 9l4.5 4L12 5l1.5 8L18 9l3 10" />
+            </svg>
+          </div>
+          <span className="text-[11px] text-gray-500 font-medium">我控！</span>
+       </button>
                       <button 
                          onClick={() => {
                            setShowPluginPanel(false);
@@ -2941,28 +3060,69 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
           
           {/* 表情包按钮（在线模式）/ 铅笔旁白切换按钮（线下模式） */}
           {!!offlineStartTime ? (
-            <button 
-              className={`shrink-0 mb-1 p-1 active:scale-95 transition-transform ${isNarratorMode ? 'text-pink-400' : 'text-gray-500'}`}
-              onClick={() => setIsNarratorMode(!isNarratorMode)}
-            >
-              <div className={`w-[26px] h-[26px] rounded-full border-2 flex items-center justify-center transition-colors ${isNarratorMode ? 'border-pink-400 bg-pink-50' : 'border-gray-500'}`}>
-                 <Edit2 size={14} strokeWidth={2.5} className="text-inherit" />
-              </div>
-            </button>
+            <div className="flex items-center gap-0.5 shrink-0">
+              {/* 向左箭头：打开我控弹窗 */}
+              <button
+                className="mb-1 p-1 text-gray-500 active:scale-95 transition-transform"
+                onClick={() => setShowWoYuModal(true)}
+                title="我控道具"
+              >
+                <ChevronLeft size={20} strokeWidth={2} />
+              </button>
+              {/* 铅笔：旁白模式切换 */}
+              <button 
+                className={`mb-1 p-1 active:scale-95 transition-transform ${isNarratorMode ? 'text-pink-400' : 'text-gray-500'}`}
+                onClick={() => setIsNarratorMode(!isNarratorMode)}
+              >
+                <div className={`w-[26px] h-[26px] rounded-full border-2 flex items-center justify-center transition-colors ${isNarratorMode ? 'border-pink-400 bg-pink-50' : 'border-gray-500'}`}>
+                   <Edit2 size={14} strokeWidth={2.5} className="text-inherit" />
+                </div>
+              </button>
+            </div>
           ) : (
-            <button
-              onMouseDown={(e) => e.preventDefault()}
-              className="shrink-0 mb-1 p-1 text-gray-500 active:scale-95 transition-transform"
-              title="表情"
-            >
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-                <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="2.5" />
-                <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="2.5" />
-              </svg>
-            </button>
+            <div className="relative">
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setShowStickerPanel(!showStickerPanel)}
+                className="shrink-0 mb-1 p-1 text-gray-500 active:scale-95 transition-transform relative"
+                title="表情"
+              >
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                  <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="2.5" />
+                  <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="2.5" />
+                </svg>
+              </button>
+            </div>
           )}
+
+          {/* 表情包面板 */}
+          <AnimatePresence>
+            {showStickerPanel && (
+              <StickerPanel
+                onClose={() => setShowStickerPanel(false)}
+                onSendSticker={async (stickerUrl) => {
+                  // 1. 先在聊天中展示表情包
+                  onSendMessage(`[image:${stickerUrl}]`);
+
+                  // 2. 将图片转成 base64 并调用 AI 识图
+                  try {
+                    const base64 = await compressImage(stickerUrl, { maxWidth: 400, maxHeight: 400, quality: 0.7 });
+                    const desc = await analyzeImage(base64, {
+                      prompt: '这是用户发送的一张表情包。请完成以下两件事：①识别并完整列出图中出现的所有文字；②用一句话描述这张表情包所表达的情绪或含义。格式：【图中文字】: xxx（无文字则写"无"）\n【表情包含义】: xxx',
+                    });
+                    // 3. 把识别结果作为系统消息注入，让 AI 明白用户发了什么
+                    onSendMessage(`[用户发送了一张表情包，AI识图结果：${desc}]`, 'system');
+                  } catch (err) {
+                    console.warn('[Sticker Vision] 识图失败:', err);
+                    // 识图失败不阻断流程，仍然发一条简短提示
+                    onSendMessage('[用户发送了一张表情包]', 'system');
+                  }
+                }}
+              />
+            )}
+          </AnimatePresence>
 
           {/* 发送键（聚焦）/ Heart+语音（失焦） */}
           {inputFocused ? (
@@ -3133,6 +3293,19 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
             className="fixed bottom-0 left-0 right-0 z-[110] p-3 pb-8"
           >
             <div className="bg-[#f7f7f7] rounded-[14px] overflow-hidden mb-2">
+              {timestampLongPressMsg && onDeleteMessages && (
+                <button
+                  onClick={() => {
+                    onDeleteMessages([timestampLongPressMsg.id]);
+                    setShowTimestampMenu(false);
+                    setTimestampLongPressMsg(null);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-[15px] border-b border-gray-200/60 active:bg-gray-200/50 bg-white"
+                >
+                  <Trash2 size={18} className="text-[#333333]" />
+                  <span className="text-[16px] text-[#333333] font-medium">删除此条消息</span>
+                </button>
+              )}
               <button 
                 onClick={() => {
                   if (onClearChat) {
@@ -3697,7 +3870,7 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
                 {callStatus === 'rejected' && (
                   <span className="text-red-400 text-[13px]">对方未接听</span>
                 )}
-                <span className="text-white/50 text-[12px] font-mono tabular-nums">
+                <span className="text-white/50 text-[10px] font-mono tabular-nums">
                   {callStatus === 'calling'
                     ? '00:00'
                     : `${String(Math.floor(callSeconds / 60)).padStart(2, '0')}:${String(callSeconds % 60).padStart(2, '0')}`
@@ -3721,9 +3894,22 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
                 <div className="w-full flex-1 overflow-y-auto px-4 flex flex-col gap-3 no-scrollbar max-h-[55vh]">
                   {callMsgs.map((msg: any, idx: number) => {
                     const text = msg.text || '';
-                    if (msg.msgType === 'narrator') {
+                    if (msg.msgType === 'narrator' && !msg.isMe) {
                       return (
-                        <div key={idx} className="w-full flex justify-center">
+                        <div
+                          key={idx}
+                          className="w-full flex justify-center"
+                          onPointerDown={() => {
+                            callMsgLongPressTimer.current = setTimeout(() => {
+                              if (navigator.vibrate) navigator.vibrate(50);
+                              setCallMsgActionMenu({ msg });
+                            }, 500);
+                          }}
+                          onPointerUp={() => { if (callMsgLongPressTimer.current) { clearTimeout(callMsgLongPressTimer.current); callMsgLongPressTimer.current = null; } }}
+                          onPointerLeave={() => { if (callMsgLongPressTimer.current) { clearTimeout(callMsgLongPressTimer.current); callMsgLongPressTimer.current = null; } }}
+                          onPointerCancel={() => { if (callMsgLongPressTimer.current) { clearTimeout(callMsgLongPressTimer.current); callMsgLongPressTimer.current = null; } }}
+                          onContextMenu={(e) => { e.preventDefault(); if (callMsgLongPressTimer.current) { clearTimeout(callMsgLongPressTimer.current); callMsgLongPressTimer.current = null; } }}
+                        >
                           <span className="text-[13px] text-white/50 italic leading-relaxed text-center whitespace-pre-wrap">{text}</span>
                         </div>
                       );
@@ -3755,10 +3941,26 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
                         cur = close + 1;
                       }
                     } else {
-                      if (text.trim()) segments.push({ type: 'narrator', text: text.trim() });
+                      if (text.trim()) {
+                        // 用户自己发的消息没有「」时，自动用「」包裹后视为对话内容（带下划线）而非旁白
+                        segments.push({ type: msg.isMe ? 'dialogue' : 'narrator', text: msg.isMe ? `「${text.trim()}」` : text.trim() });
+                      }
                     }
                     return (
-                      <div key={idx} className={`flex flex-col gap-1 ${msg.isMe ? 'items-end' : 'items-start'}`}>
+                      <div
+                        key={idx}
+                        className={`flex flex-col gap-1 ${msg.isMe ? 'items-end' : 'items-start'}`}
+                        onPointerDown={() => {
+                          callMsgLongPressTimer.current = setTimeout(() => {
+                            if (navigator.vibrate) navigator.vibrate(50);
+                            setCallMsgActionMenu({ msg });
+                          }, 500);
+                        }}
+                        onPointerUp={() => { if (callMsgLongPressTimer.current) { clearTimeout(callMsgLongPressTimer.current); callMsgLongPressTimer.current = null; } }}
+                        onPointerLeave={() => { if (callMsgLongPressTimer.current) { clearTimeout(callMsgLongPressTimer.current); callMsgLongPressTimer.current = null; } }}
+                        onPointerCancel={() => { if (callMsgLongPressTimer.current) { clearTimeout(callMsgLongPressTimer.current); callMsgLongPressTimer.current = null; } }}
+                        onContextMenu={(e) => { e.preventDefault(); if (callMsgLongPressTimer.current) { clearTimeout(callMsgLongPressTimer.current); callMsgLongPressTimer.current = null; } }}
+                      >
                         {segments.map((seg, sIdx) => {
                           if (seg.type === 'narrator') {
                             return (
@@ -3793,7 +3995,7 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
                       onChange={e => setCallInputText(e.target.value)}
                       onKeyDown={e => {
                         if (e.key === 'Enter' && callInputText.trim()) {
-                          onSendMessage(callInputText.trim(), 'text');
+                          onSendMessage(`「${callInputText.trim()}」`, 'text');
                           setCallInputText('');
                         }
                       }}
@@ -3818,7 +4020,7 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
                   <button
                     onClick={() => {
                       if (callInputText.trim()) {
-                        onSendMessage(callInputText.trim(), 'text');
+                        onSendMessage(`「${callInputText.trim()}」`, 'text');
                         setCallInputText('');
                       }
                     }}
@@ -3848,6 +4050,7 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
                       const secs = callSeconds % 60;
                       const mmss = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
                       onSendMessage(`[PHONE_CALL_END:${mmss}]`, 'system');
+                      onSendMessage(`（通话已挂断，本次通话时长 ${mmss}。）`, 'narrator');
                     } else if (callStatus === 'calling') {
                       onSendMessage('「已取消通话」', 'system');
                     }
@@ -3909,9 +4112,26 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
             <div className="flex-1 overflow-y-auto px-5 pb-8 flex flex-col gap-3 no-scrollbar">
               {reviewMsgs.map((msg: any, idx: number) => {
                 const text = msg.text || '';
+                const reviewLongPressStart = () => {
+                  callMsgLongPressTimer.current = setTimeout(() => {
+                    if (navigator.vibrate) navigator.vibrate(50);
+                    setCallMsgActionMenu({ msg });
+                  }, 500);
+                };
+                const reviewLongPressCancel = () => {
+                  if (callMsgLongPressTimer.current) { clearTimeout(callMsgLongPressTimer.current); callMsgLongPressTimer.current = null; }
+                };
                 if (msg.msgType === 'narrator') {
                   return (
-                    <div key={idx} className="w-full flex justify-center my-2">
+                    <div
+                      key={idx}
+                      className="w-full flex justify-center my-2"
+                      onPointerDown={reviewLongPressStart}
+                      onPointerUp={reviewLongPressCancel}
+                      onPointerLeave={reviewLongPressCancel}
+                      onPointerCancel={reviewLongPressCancel}
+                      onContextMenu={(e) => { e.preventDefault(); reviewLongPressCancel(); }}
+                    >
                       <span className="text-[13px] text-white/50 italic leading-relaxed text-center whitespace-pre-wrap">{text}</span>
                     </div>
                   );
@@ -3931,10 +4151,21 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
                     cur = close + 1;
                   }
                 } else {
-                  if (text.trim()) segments.push({ type: 'narrator', text: text.trim() });
+                  if (text.trim()) {
+                    // 用户自己发的消息没有「」时，自动用「」包裹后视为对话内容（带下划线）而非旁白
+                    segments.push({ type: msg.isMe ? 'dialogue' : 'narrator', text: msg.isMe ? `「${text.trim()}」` : text.trim() });
+                  }
                 }
                 return (
-                  <div key={idx} className={`flex flex-col gap-1 ${msg.isMe ? 'items-end' : 'items-start'}`}>
+                  <div
+                    key={idx}
+                    className={`flex flex-col gap-1 ${msg.isMe ? 'items-end' : 'items-start'}`}
+                    onPointerDown={reviewLongPressStart}
+                    onPointerUp={reviewLongPressCancel}
+                    onPointerLeave={reviewLongPressCancel}
+                    onPointerCancel={reviewLongPressCancel}
+                    onContextMenu={(e) => { e.preventDefault(); reviewLongPressCancel(); }}
+                  >
                     {segments.map((seg, sIdx) => {
                       if (seg.type === 'narrator') {
                         return (
@@ -3961,6 +4192,123 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
           </motion.div>
         );
       })()}
+
+      {/* 通话消息长按操作菜单 */}
+      {callMsgActionMenu && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setCallMsgActionMenu(null)}
+            className="fixed inset-0 bg-black/40 z-[300]"
+          />
+          <motion.div
+            initial={{ opacity: 0, y: '100%' }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300, mass: 0.8 }}
+            className="fixed bottom-0 left-0 right-0 z-[310] p-3 pb-10"
+          >
+            <div className="bg-[#2a2a2a] rounded-[14px] overflow-hidden mb-2">
+              <button
+                onClick={() => {
+                  const msg = callMsgActionMenu.msg;
+                  let initialText = msg.text || '';
+                  // 去掉「」包裹
+                  if (initialText.startsWith('「') && initialText.endsWith('」')) {
+                    initialText = initialText.slice(1, -1);
+                  }
+                  setCallEditingMsg(msg);
+                  setCallEditingText(initialText);
+                  setCallMsgActionMenu(null);
+                }}
+                className="w-full flex items-center justify-center gap-2 py-[15px] border-b border-white/10 active:bg-white/10"
+              >
+                <Edit2 size={18} className="text-white" />
+                <span className="text-[16px] text-white">编辑</span>
+              </button>
+              <button
+                onClick={() => {
+                  try { navigator.clipboard.writeText(callMsgActionMenu.msg.text || ''); } catch (e) {}
+                  setCallMsgActionMenu(null);
+                }}
+                className="w-full flex items-center justify-center gap-2 py-[15px] border-b border-white/10 active:bg-white/10"
+              >
+                <Copy size={18} className="text-white" />
+                <span className="text-[16px] text-white">复制</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (onDeleteMessages) onDeleteMessages([callMsgActionMenu.msg.id]);
+                  setCallMsgActionMenu(null);
+                }}
+                className="w-full flex items-center justify-center gap-2 py-[15px] active:bg-white/10"
+              >
+                <Trash2 size={18} className="text-[#ff6b6b]" />
+                <span className="text-[16px] text-[#ff6b6b]">删除</span>
+              </button>
+            </div>
+            <button
+              onClick={() => setCallMsgActionMenu(null)}
+              className="w-full py-[15px] bg-[#2a2a2a] rounded-[14px] text-[16px] font-medium text-white/60 active:bg-white/10"
+            >
+              取消
+            </button>
+          </motion.div>
+        </>
+      )}
+
+      {/* 通话消息编辑弹窗 */}
+      {callEditingMsg && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-[320]"
+            onClick={() => setCallEditingMsg(null)}
+          />
+          <motion.div
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            className="fixed bottom-0 left-0 right-0 bg-[#1c1c1c] rounded-t-[16px] z-[330] pb-10 flex flex-col"
+          >
+            <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
+              <button className="text-white/50 text-[16px]" onClick={() => setCallEditingMsg(null)}>取消</button>
+              <span className="text-white font-medium">编辑消息</span>
+              <button
+                className={`text-[16px] font-medium ${callEditingText.trim() ? 'text-[#4ade80]' : 'text-white/30'}`}
+                onClick={() => {
+                  if (callEditingText.trim() && onEditMessage) {
+                    const msg = callEditingMsg;
+                    let newText = callEditingText.trim();
+                    // 如果原来有「」包裹，保留
+                    if ((msg.text || '').startsWith('「') && (msg.text || '').endsWith('」')) {
+                      newText = `「${newText}」`;
+                    }
+                    onEditMessage(msg.id, newText);
+                    setCallEditingMsg(null);
+                    if (navigator.vibrate) navigator.vibrate(50);
+                  }
+                }}
+              >
+                确认
+              </button>
+            </div>
+            <div className="p-4">
+              <textarea
+                value={callEditingText}
+                onChange={(e) => setCallEditingText(e.target.value)}
+                autoFocus
+                className="w-full h-32 bg-white/10 rounded-lg p-3 text-[16px] text-white outline-none resize-none placeholder:text-white/30"
+                placeholder="请输入消息内容..."
+              />
+            </div>
+          </motion.div>
+        </>
+      )}
 
       {/* 通话气泡长按删除菜单 */}
       {callBubbleLongPressMsg && (
@@ -4011,6 +4359,21 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
           </motion.div>
         </>
       )}
+
+      {/* 我谕道具弹窗（独立组件） */}
+      <WoYuModal
+        visible={showWoYuModal}
+        onClose={() => {
+          setShowWoYuModal(false);
+          setWoYuActiveRecord(getActiveRecord(String(friend.id)));
+        }}
+        onSendProp={(desc) => {
+          // 旁白文本（出现了/被收回了/效果消退了）用 narrator 类型渲染成卡片
+          const isNarrator = /^\[.*(出现了|被收回了|的效果消退了)/.test(desc);
+          onSendMessage(desc, isNarrator ? 'narrator' : 'system');
+        }}
+        contactId={String(friend.id)}
+      />
 
       {showWorldbookSelect && (
         <motion.div 
