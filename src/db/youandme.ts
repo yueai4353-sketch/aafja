@@ -112,6 +112,61 @@ export function savePersonaSnapshot(persona: any): void {
   localStorage.setItem(KEY_PERSONA_SNAPSHOT, JSON.stringify(snapshot));
 }
 
+// ======= 记忆海数据持久化 =======
+
+// --- 了解你 (AboutYouEntry) ---
+export interface AboutYouEntry {
+  id: number;
+  category: string;
+  target: string;
+  key: string;
+  value: string;
+  createdAt: string;
+}
+
+const KEY_ABOUT_YOU_ENTRIES = 'memory_about_you_entries';
+
+export function loadAboutYouEntries(): AboutYouEntry[] {
+  try {
+    const raw = localStorage.getItem(KEY_ABOUT_YOU_ENTRIES);
+    return raw ? (JSON.parse(raw) as AboutYouEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveAboutYouEntries(entries: AboutYouEntry[]): void {
+  localStorage.setItem(KEY_ABOUT_YOU_ENTRIES, JSON.stringify(entries));
+}
+
+// --- 情节记忆 (PlotMemoryEntry) ---
+export interface PlotMemoryEntry {
+  content: string;
+  theme: string;
+  emotion: string;
+  importance: string;
+  date: string;
+  year: string;
+  month: string | null;
+  hasMonth: boolean;
+  timestamp: number;
+}
+
+const KEY_PLOT_MEMORIES = 'memory_plot_memories';
+
+export function loadPlotMemories(): PlotMemoryEntry[] {
+  try {
+    const raw = localStorage.getItem(KEY_PLOT_MEMORIES);
+    return raw ? (JSON.parse(raw) as PlotMemoryEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function savePlotMemories(memories: PlotMemoryEntry[]): void {
+  localStorage.setItem(KEY_PLOT_MEMORIES, JSON.stringify(memories));
+}
+
 // ---- 工具函数：将日程数组序列化为紧凑文本（用于注入提示词） ----
 export function scheduleItemsToText(items: ScheduleItem[]): string {
   return items

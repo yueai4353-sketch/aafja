@@ -11,7 +11,7 @@ import { ThemeApp as ThemeScreen } from './apps/ThemeApp';
 import { buildFullAIContext, buildPhoneCallPrompt } from './utils/aiContext';
 import { getWoKongSystemPrompt, tickProp, buildEntryNarration, getActiveRecord } from './utils/woKongManager';
 import { loadMySchedule, loadOtherSchedule, loadPersonaSnapshot, scheduleItemsToText } from './db/youandme';
-import { BackgroundLines, IconWechat, IconCalendar, IconWeather, IconHuaji, IconWorldbook, IconDevice, IconCompanion, IconSettings, IconTheme, AppIcon, CurrentTime, SortableAppIcon, IconAccounting, IconSecret, IconMessage, IconPeriod, IconCangxu, IconMemories, IconYouAndMe } from './components';
+import { BackgroundLines, IconWechat, IconCalendar, IconWeather, IconHuaji, IconWorldbook, IconDevice, IconCompanion, IconSettings, IconTheme, AppIcon, CurrentTime, SortableAppIcon, IconAccounting, IconSecret, IconMessage, IconPeriod, IconCangxu, IconMemories, IconYouAndMe, ProfileCard } from './components';
 import { WeatherApp as WeatherScreen } from './apps/WeatherApp';
 import {
   DndContext,
@@ -85,6 +85,7 @@ import {
 
 import { MemoryApp as MemoryScreen } from './apps/MemoryApp';
 import { YouAndMeApp as YouAndMeScreen } from './apps/YouAndMeApp';
+import { CangxuApp as CangxuScreen } from './apps/CangxuApp';
 
 const CalendarWidget = () => {
   const [view, setView] = useState<'minimal' | 'full'>('minimal');
@@ -189,7 +190,7 @@ const CalendarWidget = () => {
 };
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook' | 'theme' | 'memory' | 'youandme' | 'weather'>('home');
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook' | 'theme' | 'memory' | 'youandme' | 'weather' | 'cangxu'>('home');
   const [myProfile, setMyProfile] = useState<any>(() => {
     const defaultProfile = {
       name: "江明礼",
@@ -343,7 +344,7 @@ export default function App() {
     const saved = localStorage.getItem('os_desktop_apps_v3');
       const defaultApps = [
         { id: '11', iconKey: 'memories', label: '记忆', screen: 'memory' },
-        { id: '10', iconKey: 'cangxu', label: '藏叙', screen: null },
+        { id: '10', iconKey: 'cangxu', label: '藏叙', screen: 'cangxu' },
       { id: '1', iconKey: 'weather', label: '天气', screen: 'weather' },
 { id: '2', iconKey: 'calendar', label: '你我之间', screen: 'youandme' },
       { id: '3', iconKey: 'wechat', label: '微信', screen: 'wechat' },
@@ -357,7 +358,7 @@ export default function App() {
         // 过滤掉已删除的 jice 图标
         parsed = parsed.filter((a: any) => a.iconKey !== 'jice');
         if (!parsed.find((a: any) => a.iconKey === 'cangxu')) {
-          parsed.unshift({ id: '10', iconKey: 'cangxu', label: '藏叙', screen: null });
+          parsed.unshift({ id: '10', iconKey: 'cangxu', label: '藏叙', screen: 'cangxu' });
         }
         // 用代码中的 defaultApps 覆盖缓存里的 label/screen，保证改动立即生效
         parsed = parsed.map((a: any) => {
@@ -743,7 +744,6 @@ export default function App() {
       finalPrompt = `${finalPrompt}${woKongPrompt}`;
     }
 
-    showGlobalToast('AI 正在思考...');
     setAiTypingStatus(prev => ({ ...prev, [friendId]: true }));
     try {
       addConsoleLog(`开始请求 AI (friendId: ${friendId})`);
@@ -1012,29 +1012,32 @@ export default function App() {
                     const startQuote = text.indexOf('「', currentIdx);
                     
                     if (startQuote === -1) {
-                        // 没有更多引号了，剩余部分是旁白
+                        // 没有更多引号了，剩余部分是旁白，按自然段拆分
                         const narratorText = text.substring(currentIdx).trim();
                         if (narratorText) {
-                            segments.push({ type: 'narrator', text: narratorText });
+                            const paras = narratorText.split(/\n+/).map(p => p.trim()).filter(p => p.length > 0);
+                            for (const para of paras) segments.push({ type: 'narrator', text: para });
                         }
                         break;
                     }
                     
-                    // startQuote 之前的是旁白
+                    // startQuote 之前的是旁白，按自然段拆分
                     if (startQuote > currentIdx) {
                         const narratorText = text.substring(currentIdx, startQuote).trim();
                         if (narratorText) {
-                            segments.push({ type: 'narrator', text: narratorText });
+                            const paras = narratorText.split(/\n+/).map(p => p.trim()).filter(p => p.length > 0);
+                            for (const para of paras) segments.push({ type: 'narrator', text: para });
                         }
                     }
                     
                     // 找到结束引号
                     const endQuote = text.indexOf('」', startQuote + 1);
                     if (endQuote === -1) {
-                        // 没有结束引号，剩余部分作为旁白
+                        // 没有结束引号，剩余部分作为旁白，按自然段拆分
                         const narratorText = text.substring(startQuote).trim();
                         if (narratorText) {
-                            segments.push({ type: 'narrator', text: narratorText });
+                            const paras = narratorText.split(/\n+/).map(p => p.trim()).filter(p => p.length > 0);
+                            for (const para of paras) segments.push({ type: 'narrator', text: para });
                         }
                         break;
                     }
@@ -1481,7 +1484,7 @@ export default function App() {
                 // narrator 类型：按段落拆分，每段独立存一条记录，确保可单独删除
                 if (msgType === 'narrator' && !recalledContent) {
                   const paragraphs = text.split(/\n+/).map((s: string) => s.trim()).filter((s: string) => s);
-                  const segments = paragraphs.length > 1 ? paragraphs : [text];
+                  const segments = paragraphs.length > 0 ? paragraphs : [text];
                   const baseTs = Date.now();
                   segments.forEach((seg, i) => {
                     const ts = baseTs + i;
@@ -1539,7 +1542,7 @@ export default function App() {
                 setPersonas(prev => prev.map(p => p.id === friendId ? { ...p, ...data } : p));
               }}
               onDeleteMessages={(friendId, messageIds) => {
-                ChatDB.messages.bulkDelete(messageIds).then(() => {
+                return ChatDB.messages.bulkDelete(messageIds).then(() => {
                   setWechatChats(prev => {
                     const msgs = prev[friendId] || [];
                     return { ...prev, [friendId]: msgs.filter(m => !messageIds.includes(m.id)) };
@@ -1656,23 +1659,18 @@ export default function App() {
               onBack={() => setCurrentScreen('home')}
             />
           )}
+          {currentScreen === 'cangxu' && (
+            <CangxuScreen 
+              key="cangxu"
+              onClose={() => setCurrentScreen('home')}
+              personas={personas}
+              myProfile={myProfile}
+            />
+          )}
         </AnimatePresence>
 
         {/* Desktop Screen Content (Type A: Fixed, No Scroll) */}
         <div className="flex-1 w-full relative z-10 flex flex-col overflow-hidden">
-          
-          {/* Status Bar */}
-          <div className="flex justify-between items-center px-4 sm:px-8 md:px-12 pt-[2vh] sm:pt-[4vh] text-[clamp(13px,1.5vw,16px)] font-medium text-gray-800 flex-shrink-0">
-            <div className="flex items-center">
-              <CurrentTime /> <Moon size={14} className="ml-2 opacity-80" fill="currentColor" strokeWidth={1} />
-            </div>
-            <div className="flex items-center gap-2 opacity-60">
-              <Signal size={16} strokeWidth={2.5} />
-              <div className="font-bold tracking-tighter text-[11px] uppercase mr-1">5G</div>
-              <Wifi size={16} strokeWidth={2.5} />
-              <Battery size={18} strokeWidth={2} className="ml-1" />
-            </div>
-          </div>
 
           {/* Main Desktop Layout */}
           <div className="flex-1 flex flex-col mt-4 min-h-0 pb-2 overflow-hidden">
@@ -1801,7 +1799,7 @@ export default function App() {
             </div>
 
                   {/* App Grid for Page 1 */}
-                  <div className="flex-1 px-4 sm:px-12 md:px-20 lg:px-32 flex flex-col justify-end">
+                  <div className="flex-1 px-4 sm:px-12 md:px-20 lg:px-32 flex flex-col justify-start pt-4 sm:pt-8">
                   <DndContext 
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -1859,7 +1857,7 @@ export default function App() {
 
                 {/* Page 2 */}
                 <div className="w-full flex-shrink-0 flex flex-col">
-                  <div className="flex-1 px-4 sm:px-12 md:mx-20 lg:mx-32 flex flex-col justify-end">
+                  <div className="flex-1 px-4 sm:px-12 md:mx-20 lg:mx-32 flex flex-col justify-start pt-4 sm:pt-8">
                   <DndContext 
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -1880,6 +1878,11 @@ export default function App() {
                       className="grid grid-cols-4 gap-x-4 sm:gap-x-8 md:gap-x-12 lg:gap-x-20 gap-y-6 sm:gap-y-10 md:gap-y-14 lg:gap-y-16 px-2 sm:px-6 relative"
                       onClick={() => { if (isEditingApps) setIsEditingApps(false); }}
                     >
+                      {/* Left: Profile Card Widget */}
+                      <div className="col-span-2 row-span-2 pointer-events-auto cursor-default group z-20" onClick={(e) => { e.stopPropagation(); if (isEditingApps) setIsEditingApps(false); }}>
+                        <ProfileCard />
+                      </div>
+
                       <SortableContext items={desktopAppsPage2.map((i: any) => i.id)} strategy={rectSortingStrategy}>
                         {desktopAppsPage2.map((app: any) => (
                           <SortableAppIcon

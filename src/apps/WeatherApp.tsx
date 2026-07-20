@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, RotateCcw, MoreVertical, CloudSun, Droplets, Wind, ThermometerSun, Eye } from 'lucide-react';
 import { AppDB } from '../db';
+import { motion } from 'motion/react';
 
 // wttr.in 返回的单日天气结构
 interface WttrDay {
@@ -145,15 +146,43 @@ export const WeatherApp = ({ onBack }: { onBack: () => void }) => {
     setError(null);
     try {
       const url = `/api/weather?city=${encodeURIComponent(city.trim())}`;
-      const res = await fetch(url);
+      console.log('[WeatherApp] Fetching weather for:', city.trim());
+      
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      console.log('[WeatherApp] Response status:', res.status);
+      
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `请求失败 (${res.status})`);
+        let errorMessage = `请求失败 (${res.status})`;
+        try {
+          const errData = await res.json();
+          errorMessage = errData.error || errorMessage;
+          if (errData.details) {
+            console.error('[WeatherApp] Error details:', errData.details);
+          }
+        } catch (parseErr) {
+          console.error('[WeatherApp] Failed to parse error response:', parseErr);
+          const textErr = await res.text().catch(() => '');
+          if (textErr) {
+            console.error('[WeatherApp] Error text:', textErr.slice(0, 200));
+          }
+        }
+        throw new Error(errorMessage);
       }
+      
       const json: WttrRaw = await res.json();
+      console.log('[WeatherApp] Received weather data');
 
       const cur = json.current_condition?.[0];
-      if (!cur) throw new Error('返回数据异常');
+      if (!cur) {
+        console.error('[WeatherApp] Missing current_condition in response');
+        throw new Error('天气数据格式异常，请稍后重试');
+      }
 
       const descRaw = cur.weatherDesc?.[0]?.value || '';
       const descCN = weatherToCN(descRaw);
@@ -211,9 +240,28 @@ export const WeatherApp = ({ onBack }: { onBack: () => void }) => {
       }));
       await AppDB.appSettings.put({ key: 'weather_ai_forecast', value: JSON.stringify(aiForecast) });
       await AppDB.appSettings.put({ key: 'my_city', value: city.trim() });
+      
+      console.log('[WeatherApp] Weather data saved successfully');
 
     } catch (e: any) {
-      setError(e?.message || '获取天气失败，请检查城市名称或网络');
+      console.error('[WeatherApp] Error fetching weather:', e);
+      
+      // 提供更友好的错误信息
+      let errorMessage = '获取天气失败，请检查城市名称或网络';
+      
+      if (e.message.includes('timeout') || e.message.includes('超时')) {
+        errorMessage = '请求超时，请检查网络连接后重试';
+      } else if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+        errorMessage = '网络连接失败，请检查网络设置';
+      } else if (e.message.includes('404')) {
+        errorMessage = '找不到该城市，请检查城市名称拼写';
+      } else if (e.message.includes('500') || e.message.includes('503')) {
+        errorMessage = '天气服务暂时不可用，请稍后重试';
+      } else if (e.message) {
+        errorMessage = e.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -361,7 +409,13 @@ export const WeatherApp = ({ onBack }: { onBack: () => void }) => {
   }
 
   return (
-    <div className="absolute inset-0 bg-gray-50 flex flex-col z-[100] animate-in slide-in-from-bottom duration-300">
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.2 }}
+      className="absolute inset-0 bg-gray-50 flex flex-col z-[100]"
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-12 pb-4 bg-white sticky top-0 z-10">
         <button onClick={onBack} className="p-2 -ml-2 text-gray-800">
@@ -485,6 +539,6 @@ export const WeatherApp = ({ onBack }: { onBack: () => void }) => {
         </div>
 
       </div>
-    </div>
+    </motion.div>
   );
 };

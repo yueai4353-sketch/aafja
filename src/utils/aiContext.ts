@@ -1,4 +1,6 @@
 import { AppDB } from '../db';
+import { loadPlotMemories, loadAboutYouEntries } from '../db/youandme';
+import { buildAssetContext } from './assetContext';
 
 /**
  * 构建完整的 AI 对话上下文（供微信消息和视频通话共用）
@@ -178,6 +180,87 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
         result.worldbookContent = `\n【相关世界书知识库】此部分代表背景知识：\n${worldbookResult}`;
     }
 
+    // === 4. 读取记忆海内容 ===
+    // 获取最近用户消息文本，用于判断是否需要选择性读取"了解你"中的相关条目
+    const recentUserTexts = recentMessages
+        .filter(m => m.isMe && m.text && m.msgType !== 'system' && m.msgType !== 'narrator')
+        .map(m => m.text.toLowerCase())
+        .join(' ');
+
+    // 4-1. 核心记忆（情节记忆中 importance >= 8 的条目，视为核心记忆）—— 必须读取
+    const allPlotMemories = loadPlotMemories();
+    const coreMemories = allPlotMemories.filter(m => Number(m.importance) >= 8);
+
+    // 4-2. 清洁记忆（最近的情节记忆，importance < 8，代表普通记忆摘要）—— 必须读取，取最近 10 条
+    const cleanMemories = allPlotMemories
+        .filter(m => Number(m.importance) < 8)
+        .slice(-10);
+
+    // 4-3. 了解你（aboutYouEntries）—— 全量读取，根据当前对话内容选择性注入相关条目
+    const allAboutYou = loadAboutYouEntries();
+
+    // 选择性过滤：如果用户消息中出现了某个条目的 key，则该条目更需要被注入
+    const relevantAboutYou = allAboutYou.filter(entry => {
+        if (!entry.key || !entry.value) return false;
+        // 优先注入与当前话题相关的条目（key 或 value 关键词出现在最近对话中）
+        const keyLower = entry.key.toLowerCase();
+        const valueLower = entry.value.toLowerCase();
+        return recentUserTexts.includes(keyLower) || recentUserTexts.includes(valueLower);
+    });
+    // 非相关条目也保留（全量注入），但放在相关条目后面
+    const otherAboutYou = allAboutYou.filter(entry => {
+        if (!entry.key || !entry.value) return false;
+        const keyLower = entry.key.toLowerCase();
+        const valueLower = entry.value.toLowerCase();
+        return !recentUserTexts.includes(keyLower) && !recentUserTexts.includes(valueLower);
+    });
+
+    // 拼装记忆海内容
+    let memorySeaContent = '';
+
+    if (coreMemories.length > 0) {
+        const coreLines = coreMemories
+            .map(m => `· [${m.date}][${m.theme}][重要度:${m.importance}] ${m.content}${m.emotion ? `（${m.emotion}）` : ''}`)
+            .join('\n');
+        memorySeaContent += `【核心记忆】这些是你们之间最重要的记忆，必须牢记：\n${coreLines}\n`;
+    }
+
+    if (cleanMemories.length > 0) {
+        const cleanLines = cleanMemories
+            .map(m => `· [${m.date}][${m.theme}] ${m.content}${m.emotion ? `（${m.emotion}）` : ''}`)
+            .join('\n');
+        memorySeaContent += `\n【近期记忆】近期发生的一些事情：\n${cleanLines}\n`;
+    }
+
+    if (relevantAboutYou.length > 0) {
+        const relevantLines = relevantAboutYou
+            .map(e => `· [${e.category}][关于${e.target}] ${e.key}：${e.value}`)
+            .join('\n');
+        memorySeaContent += `\n【了解你（与本次话题相关）】当前对话涉及以下你掌握的信息，请优先参考：\n${relevantLines}\n`;
+    }
+
+    if (otherAboutYou.length > 0) {
+        const otherLines = otherAboutYou
+            .map(e => `· [${e.category}][关于${e.target}] ${e.key}：${e.value}`)
+            .join('\n');
+        memorySeaContent += `\n【了解你（其他）】你还记得关于对方的这些事：\n${otherLines}\n`;
+    }
+
+    if (memorySeaContent) {
+        result.memoryContent = `【记忆海】以下是你记忆中储存的内容，来自你与对方的相处历程：\n${memorySeaContent}`;
+    }
+
+    // === 4-4. 智能资产上下文（仅在对话涉及资产时才读取，节省token） ===
+    try {
+        const assetContext = await buildAssetContext(contactId, persona, recentMessages);
+        if (assetContext) {
+            result.memoryContent += assetContext;
+        }
+    } catch (e) {
+        console.warn('[资产上下文] 构建失败:', e);
+    }
+
+
     // 拼装完整系统提示词
     const promptIntro = `【角色扮演最高指令】你现在正在进行一场沉浸式的角色扮演。请你完全忘掉自己是AI语言模型。你有着独立的思想、生活状态和真实的人性，你就是下面设定的这个角色！请认准“你的真实内核信息”，并和对面的“人类用户”进行交互，绝不可以把人类用户的人设当成你自己：\n`;
     
@@ -201,12 +284,29 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
     // 读取"停用时间感知"开关
     const disableTimeAwareness = settingsRec?.value?.disableTimeAwareness || false;
 
+    // 检测当前是否处于线下模式：从最近的消息中查找 [LOCATION:] 标记
+    let currentMode: 'online' | 'offline' = 'online';
+    let currentOfflineLocation = '某处';
+    for (let i = recentMessages.length - 1; i >= 0; i--) {
+        const msg = recentMessages[i];
+        const txt = msg?.text;
+        if (txt && typeof txt === 'string') {
+            const match = txt.match(/\[LOCATION:(.*?)\]/);
+            if (match) {
+                currentMode = 'offline';
+                currentOfflineLocation = match[1];
+                break;
+            }
+        }
+    }
+
     let prompt = '';
     
     // 收集聊天记录中用户发送的图片 base64（用于多模态 Vision 请求）
     const imageMessages: string[] = [];
 
-    const formattedHistory = recentMessages.map((msg: any) => {
+    // 格式化消息为文本行
+    const formatOneMsg = (msg: any): string => {
         if (msg.msgType === 'system' || msg.msgType === 'narrator') {
             if (msg.text === '你撤回了一条消息' && msg.recalledContent) {
                  const secondsMatch = msg.recalledContent.match(/\[SECONDS:(\d+)\]$/);
@@ -214,6 +314,7 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
                  const actualContent = msg.recalledContent.replace(/\[SECONDS:\d+\]$/, '');
                  return `[撤回: 原内容:"${actualContent}", 撤回了${seconds}秒, 和你当时的活跃状态:活跃]`;
             }
+            if (msg.isSystem) return `【系统/旁白】${msg.text}`;
             return `【系统/旁白】${msg.text}`;
         }
         // 图片消息：文本历史中标记为 [图片]，base64 数据通过 imageMessages 单独传递给 Vision
@@ -235,7 +336,32 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
             return `${msg.isMe ? myProfile?.name || '我' : persona.name}: [表情包]`;
         }
         return `${msg.isMe ? myProfile?.name || '我' : persona.name}: ${text}`;
-    }).join('\n');
+    };
+
+    // 找到最后一条用户（isMe）发出的真实消息，用于末尾单独强调
+    // 注意：旁白也算聊天消息，需要被AI读取和回复
+    const lastUserMsgIdx = (() => {
+        for (let i = recentMessages.length - 1; i >= 0; i--) {
+            const m = recentMessages[i];
+            if (m.isMe && m.msgType !== 'system' && !m.isSystem) {
+                return i;
+            }
+        }
+        return -1;
+    })();
+
+    // 生成历史文本（最新用户消息之前的部分，不含该条消息本身）
+    const historyLines = recentMessages
+        .slice(0, lastUserMsgIdx >= 0 ? lastUserMsgIdx : recentMessages.length)
+        .map(formatOneMsg)
+        .join('\n');
+
+    // 最新用户消息单独拎出来，放到末尾并加强调标记，提示 AI 这才是需要回复的主体
+    const latestUserLine = lastUserMsgIdx >= 0
+        ? `\n⚠️【用户最新消息，这是你本轮需要回复的主体】\n${formatOneMsg(recentMessages[lastUserMsgIdx])}`
+        : '';
+
+    const formattedHistory = historyLines + latestUserLine;
     // 根据"停用时间感知"开关决定 timeContext 内容
     let timeContextValue: string;
     if (disableTimeAwareness) {
@@ -265,7 +391,8 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
             userPov: userPov,
             customStyle: customStyle,
             forceMindCard: forceMindCard,
-            currentMode: 'online', // Or detect if currently offline based on context/state
+            currentMode: currentMode,
+            location: currentOfflineLocation,
             contactId: contactId,
         }, persona);
     } else {

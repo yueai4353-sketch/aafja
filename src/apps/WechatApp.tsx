@@ -9,9 +9,10 @@ import { AppDB } from '../db';
 import { fileToBase64, analyzeImage, compressImage } from '../utils/vision';
 import { shouldShowTimestamp, formatChatTimestamp } from '../utils/timeUtils';
 import { buildWorldbookText, buildPersonaText, buildMyProfileText } from '../utils/schedulePrompt';
-import { loadOtherSchedule } from '../db/youandme';
+import { loadOtherSchedule, loadPlotMemories, loadAboutYouEntries } from '../db/youandme';
+import { summarizeChatBatch } from '../utils/memorySummarize';
 
-const ChatSettingsScreen = ({ onBack, friend, onSetRemark, onSetWallpaper, onClearChat, onShowCotDisplayChange }: { onBack: () => void, friend: any, onSetRemark?: (remark: string) => void, onSetWallpaper?: (wp: string) => void, onClearChat?: () => void, onShowCotDisplayChange?: (val: boolean) => void, key?: React.Key }) => {
+const ChatSettingsScreen = ({ onBack, friend, onSetRemark, onSetWallpaper, onClearChat, onShowCotDisplayChange, myProfile }: { onBack: () => void, friend: any, onSetRemark?: (remark: string) => void, onSetWallpaper?: (wp: string) => void, onClearChat?: () => void, onShowCotDisplayChange?: (val: boolean) => void, key?: React.Key, myProfile?: any }) => {
   const [showRemarkModal, setShowRemarkModal] = useState(false);
   const [remarkInput, setRemarkInput] = useState(friend.wechat_remark || '');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -306,6 +307,90 @@ const updateSetting = async (key: string, value: any) => {
     await updateSetting('autoSummaryLimit', num);
   };
 
+  // ── 记忆总结 ──────────────────────────────────────────────────────
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [summarizeToast, setSummarizeToast] = useState('');
+
+  const showSummarizeToast = (msg: string) => {
+    setSummarizeToast(msg);
+    setTimeout(() => setSummarizeToast(''), 3000);
+  };
+
+  /** 读取该联系人的所有消息（去重、排序） */
+  const loadAllMessages = async (): Promise<any[]> => {
+    if (!friend?.id) return [];
+    const contactIdStr = String(friend.id);
+    const msgsStr = await AppDB.messages.where('contactId').equals(contactIdStr).sortBy('fullTimestamp');
+    const msgsNum = typeof friend.id === 'number'
+      ? await AppDB.messages.where('contactId').equals(friend.id).sortBy('fullTimestamp')
+      : [];
+    const all = [...msgsStr, ...msgsNum];
+    return all
+      .reduce((acc: any[], msg) => {
+        if (!acc.find(m => m.fullTimestamp === msg.fullTimestamp)) acc.push(msg);
+        return acc;
+      }, [])
+      .sort((a: any, b: any) => a.fullTimestamp - b.fullTimestamp);
+  };
+
+  /** 总结下一批：从 summarizedCount 开始，取 autoSummaryLimit 条 */
+  const handleSummarizeNextBatch = async () => {
+    if (isSummarizing) return;
+    setIsSummarizing(true);
+    try {
+      const all = await loadAllMessages();
+      if (summarizedCount >= all.length) {
+        showSummarizeToast('没有待总结的消息');
+        return;
+      }
+      const batch = all.slice(summarizedCount, summarizedCount + Math.max(autoSummaryLimit, 1));
+      if (batch.length === 0) { showSummarizeToast('没有可总结的消息'); return; }
+
+      const myPersonaRec = await AppDB.appSettings.get('my_persona');
+      const myProfileData = myPersonaRec?.value || {};
+      const result = await summarizeChatBatch(batch, friend, myProfileData);
+
+      if (result.error) {
+        showSummarizeToast(`总结失败：${result.error}`);
+      } else {
+        setSummarizedCount(prev => prev + batch.length);
+        const plotCount = result.plotMemories.length;
+        const aboutCount = result.aboutYouEntries.length;
+        showSummarizeToast(`✅ 总结完成！新增情节记忆 ${plotCount} 条，了解你 ${aboutCount} 条`);
+      }
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
+  /** 全部总结：分批从头总结所有未总结消息 */
+  const handleSummarizeAll = async () => {
+    if (isSummarizing) return;
+    setIsSummarizing(true);
+    try {
+      const all = await loadAllMessages();
+      if (all.length === 0) { showSummarizeToast('没有消息可总结'); return; }
+
+      const myPersonaRec = await AppDB.appSettings.get('my_persona');
+      const myProfileData = myPersonaRec?.value || {};
+      const batchSize = Math.max(autoSummaryLimit, 1);
+      let totalPlot = 0;
+      let totalAbout = 0;
+
+      for (let i = summarizedCount; i < all.length; i += batchSize) {
+        const batch = all.slice(i, i + batchSize);
+        const result = await summarizeChatBatch(batch, friend, myProfileData);
+        if (result.error) { showSummarizeToast(`总结失败：${result.error}`); break; }
+        totalPlot += result.plotMemories.length;
+        totalAbout += result.aboutYouEntries.length;
+        setSummarizedCount(i + batch.length);
+      }
+      showSummarizeToast(`✅ 全部总结完成！情节记忆 ${totalPlot} 条，了解你 ${totalAbout} 条`);
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
   const handleSetMemoryInjectLimit = async (num: number, isCustom = false) => {
     if (!isCustom) {
        setMemoryInjectLimit(num);
@@ -422,15 +507,6 @@ const updateSetting = async (key: string, value: any) => {
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       className="absolute inset-0 bg-[#f3f3f3] z-[90] flex flex-col pt-4"
     >
-      {/* Status Bar */}
-      <div className="flex justify-between items-center px-7 text-[13px] font-medium text-gray-800 shrink-0 bg-white pb-2">
-        <div className="flex items-center">
-          <CurrentTime />
-        </div>
-        <div className="flex items-center">
-           100%
-        </div>
-      </div>
 
       {/* Header */}
       <div className="flex items-center px-4 py-3 shrink-0 bg-white border-b border-gray-100">
@@ -708,9 +784,28 @@ const updateSetting = async (key: string, value: any) => {
                已总结 {summarizedCount} 条 / 共 {totalMessages} 条，待总结 {Math.max(0, totalMessages - summarizedCount)} 条
             </p>
 
+            {/* 总结 toast */}
+            {summarizeToast && (
+              <div className="text-[13px] text-[#07C160] bg-green-50 border border-green-100 rounded-[8px] px-3 py-2 leading-relaxed">
+                {summarizeToast}
+              </div>
+            )}
+
             <div className="flex items-center gap-3">
-               <button className="flex-1 py-2.5 bg-[#f3f3f3] text-[#333333] rounded-[8px] text-[15px] font-medium active:bg-[#e8e8e8] border border-gray-200/50">总结下一批</button>
-               <button className="flex-1 py-2.5 bg-[#f3f3f3] text-[#333333] rounded-[8px] text-[15px] font-medium active:bg-[#e8e8e8] border border-gray-200/50">全部总结</button>
+               <button
+                 onClick={handleSummarizeNextBatch}
+                 disabled={isSummarizing}
+                 className={`flex-1 py-2.5 rounded-[8px] text-[15px] font-medium border transition-colors ${isSummarizing ? 'bg-gray-100 text-gray-400 border-gray-100 cursor-not-allowed' : 'bg-[#f3f3f3] text-[#333333] border-gray-200/50 active:bg-[#e8e8e8]'}`}
+               >
+                 {isSummarizing ? '总结中...' : '总结下一批'}
+               </button>
+               <button
+                 onClick={handleSummarizeAll}
+                 disabled={isSummarizing}
+                 className={`flex-1 py-2.5 rounded-[8px] text-[15px] font-medium border transition-colors ${isSummarizing ? 'bg-gray-100 text-gray-400 border-gray-100 cursor-not-allowed' : 'bg-[#f3f3f3] text-[#333333] border-gray-200/50 active:bg-[#e8e8e8]'}`}
+               >
+                 {isSummarizing ? '总结中...' : '全部总结'}
+               </button>
             </div>
 
             <div className="flex flex-col gap-2 mt-2">
@@ -1641,6 +1736,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
   const [showTimestampMenu, setShowTimestampMenu] = useState(false);
   const [timestampLongPressMsg, setTimestampLongPressMsg] = useState<any>(null);
   const timestampLongPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [hiddenTimestamps, setHiddenTimestamps] = useState<Set<number>>(new Set());
 
   const startTimestampLongPress = (msg?: any) => {
     if (navigator.vibrate) {
@@ -1667,7 +1763,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
     return saved ? parseInt(saved) : null;
   });
   const [offlineDuration, setOfflineDuration] = useState<number>(0);
-  const [isOfflineExpanded, setIsOfflineExpanded] = useState(true);
+  const [isOfflineExpanded, setIsOfflineExpanded] = useState(false);
   const [isNarratorMode, setIsNarratorMode] = useState(false);
   const [showStickerPanel, setShowStickerPanel] = useState(false);
 
@@ -1770,24 +1866,6 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
       className="absolute inset-0 bg-[#ededed] z-[80] flex flex-col pt-4"
       style={chatWallpaper ? { backgroundImage: `url(${chatWallpaper})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
     >
-      {/* Status Bar */}
-      <div className="flex justify-between items-center px-7 text-[13px] font-medium text-gray-800 shrink-0 bg-[#ededed] pb-2">
-        <div 
-          className="flex items-center cursor-pointer select-none"
-          onPointerDown={startTimestampLongPress}
-          onPointerUp={cancelTimestampLongPress}
-          onPointerLeave={cancelTimestampLongPress}
-          onPointerCancel={cancelTimestampLongPress}
-          onContextMenu={(e) => { e.preventDefault(); cancelTimestampLongPress(); }}
-        >
-          <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
-        </div>
-        <div className="flex items-center gap-1.5 opacity-60">
-          <Signal size={14} strokeWidth={2.5} />
-          <Wifi size={14} strokeWidth={2.5} />
-          <Battery size={16} strokeWidth={2} />
-        </div>
-      </div>
 
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 shrink-0 bg-[#ededed]">
@@ -2046,9 +2124,11 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                 msg.fullTimestamp ?? msg.timestamp ?? 0,
                 prevVisibleMsgForCall ? (prevVisibleMsgForCall.fullTimestamp ?? prevVisibleMsgForCall.timestamp ?? null) : null
               );
+              const callTimestampValue = msg.fullTimestamp ?? msg.timestamp ?? 0;
+              const isCallTimestampHidden = hiddenTimestamps.has(callTimestampValue);
               return (
                 <React.Fragment key={idx}>
-                  {showTimeForCall && (
+                  {showTimeForCall && !isCallTimestampHidden && (
                     <div
                       className="chat-timestamp"
                       onPointerDown={() => startTimestampLongPress(msg)}
@@ -2142,8 +2222,13 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
 
             let parts: any[] = [];
             if (msg.msgType === 'narrator') {
-                // 每条 narrator 记录已是单段，直接渲染，不再二次拆分
-                parts = [{ type: 'narrator', text: cleanText }];
+                // 按自然段拆分，每段独立渲染，确保每段可单独长按操作
+                const narratorParas = cleanText.split(/\n+/).map((p: string) => p.trim()).filter((p: string) => p.length > 0);
+                if (narratorParas.length > 0) {
+                    parts = narratorParas.map((p: string) => ({ type: 'narrator', text: p }));
+                } else {
+                    parts = [{ type: 'narrator', text: cleanText }];
+                }
             } else if (cleanText.startsWith('[红包]') || cleanText.startsWith('[TRANSFER:') || cleanText.match(/^\[image:.*\]$/) || cleanText.match(/^\[voice:.*\]$/)) {
                 parts = [{ type: 'special', text: cleanText }];
             } else {
@@ -2207,10 +2292,12 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
               msg.fullTimestamp ?? msg.timestamp ?? 0,
               prevVisibleMsg ? (prevVisibleMsg.fullTimestamp ?? prevVisibleMsg.timestamp ?? null) : null
             );
+            const timestampValue = msg.fullTimestamp ?? msg.timestamp ?? 0;
+            const isTimestampHidden = hiddenTimestamps.has(timestampValue);
 
             return (
               <React.Fragment key={idx}>
-              {showTime && (
+              {showTime && !isTimestampHidden && (
                 <div
                   className="chat-timestamp"
                   onPointerDown={() => startTimestampLongPress(msg)}
@@ -2675,23 +2762,24 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                          <span className="text-[11px] text-gray-500 font-medium">速切世界书</span>
                       </button>
                       <button 
-                         onClick={() => {
+                         onClick={async () => {
                            setShowPluginPanel(false);
                            
                            let idsToDelete: number[] = [];
                            let i = messages.length - 1;
                            // 删除最后一轮完整的AI回复（包括旁白和气泡，直到遇到用户消息或系统消息）
                            while (i >= 0 && !messages[i].isMe && messages[i].msgType !== 'system') {
-                             idsToDelete.push(messages[i].id);
+                             if (messages[i].id != null) idsToDelete.push(messages[i].id);
                              i--;
                            }
                            
                            if (idsToDelete.length > 0 && onDeleteMessages) {
-                               onDeleteMessages(idsToDelete);
+                               // 等待数据库删除和 state 更新完成后再触发 AI
+                               await onDeleteMessages(idsToDelete);
                            }
                            
                            if (onTriggerAI && !isTyping) {
-                               setTimeout(() => onTriggerAI!(), 100);
+                               onTriggerAI();
                            }
                          }}
                          className="flex flex-col items-center gap-1.5"
@@ -2778,12 +2866,33 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                                .join('\n');
 
                              const nowStr = nowDate.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+
+                             // 读取记忆海内容（核心记忆 + 近期记忆 + 了解你）
+                             const allPlotMems = loadPlotMemories();
+                             const coreMems = allPlotMems.filter(m => Number(m.importance) >= 8);
+                             const cleanMems = allPlotMems.filter(m => Number(m.importance) < 8).slice(-10);
+                             const allAboutYouMems = loadAboutYouEntries();
+
+                             let memorySeaBlock = '';
+                             if (coreMems.length > 0) {
+                               memorySeaBlock += `【核心记忆】这些是你们之间最重要的记忆，必须牢记：\n${coreMems.map(m => `· [${m.date}][${m.theme}][重要度:${m.importance}] ${m.content}${m.emotion ? `（${m.emotion}）` : ''}`).join('\n')}\n`;
+                             }
+                             if (cleanMems.length > 0) {
+                               memorySeaBlock += `\n【近期记忆】近期发生的一些事情：\n${cleanMems.map(m => `· [${m.date}][${m.theme}] ${m.content}${m.emotion ? `（${m.emotion}）` : ''}`).join('\n')}\n`;
+                             }
+                             if (allAboutYouMems.length > 0) {
+                               memorySeaBlock += `\n【了解你】你了解关于对方的这些事：\n${allAboutYouMems.map(e => `· [${e.category}][关于${e.target}] ${e.key}：${e.value}`).join('\n')}\n`;
+                             }
+                             const memorySeaSection = memorySeaBlock
+                               ? `【记忆海】以下是你记忆中储存的内容，来自你与对方的相处历程：\n${memorySeaBlock}`
+                               : '';
+
                              const prompt = `你是${ai.wechat_remark || ai.name}，下面是你的完整档案与当前上下文：
 
 【你的人设档案】
 ${personaDesc}
 
-${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myProfileText ? `【与你联系的用户档案】\n${myProfileText}\n` : ''}${todaySchedule ? `【你今日的日程安排】\n${todaySchedule}\n` : ''}
+${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myProfileText ? `【与你联系的用户档案】\n${myProfileText}\n` : ''}${memorySeaSection ? `${memorySeaSection}\n` : ''}${todaySchedule ? `【你今日的日程安排】\n${todaySchedule}\n` : ''}
 【当前时间】${nowStr}
 
 现在对方（用户）突然给你打来电话。请你完全代入自己的人设、当前时间、今日日程和当前状态，判断你此刻是否会接听这个电话。
@@ -3070,9 +3179,12 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
                 <ChevronLeft size={20} strokeWidth={2} />
               </button>
               {/* 铅笔：旁白模式切换 */}
-              <button 
+              <button
                 className={`mb-1 p-1 active:scale-95 transition-transform ${isNarratorMode ? 'text-pink-400' : 'text-gray-500'}`}
-                onClick={() => setIsNarratorMode(!isNarratorMode)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setIsNarratorMode(!isNarratorMode);
+                }}
               >
                 <div className={`w-[26px] h-[26px] rounded-full border-2 flex items-center justify-center transition-colors ${isNarratorMode ? 'border-pink-400 bg-pink-50' : 'border-gray-500'}`}>
                    <Edit2 size={14} strokeWidth={2.5} className="text-inherit" />
@@ -3293,35 +3405,22 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
             className="fixed bottom-0 left-0 right-0 z-[110] p-3 pb-8"
           >
             <div className="bg-[#f7f7f7] rounded-[14px] overflow-hidden mb-2">
-              {timestampLongPressMsg && onDeleteMessages && (
+              {timestampLongPressMsg && (
                 <button
                   onClick={() => {
-                    onDeleteMessages([timestampLongPressMsg.id]);
+                    if (timestampLongPressMsg.fullTimestamp || timestampLongPressMsg.timestamp) {
+                      const timestampToHide = timestampLongPressMsg.fullTimestamp ?? timestampLongPressMsg.timestamp;
+                      setHiddenTimestamps(prev => new Set(prev).add(timestampToHide));
+                    }
                     setShowTimestampMenu(false);
                     setTimestampLongPressMsg(null);
                   }}
-                  className="w-full flex items-center justify-center gap-2 py-[15px] border-b border-gray-200/60 active:bg-gray-200/50 bg-white"
+                  className="w-full flex items-center justify-center gap-2 py-[15px] active:bg-gray-200/50 bg-white"
                 >
-                  <Trash2 size={18} className="text-[#333333]" />
-                  <span className="text-[16px] text-[#333333] font-medium">删除此条消息</span>
+                  <Trash2 size={18} className="text-[#ee0a24]" />
+                  <span className="text-[16px] text-[#ee0a24] font-medium">删除</span>
                 </button>
               )}
-              <button 
-                onClick={() => {
-                  if (onClearChat) {
-                    setShowTimestampMenu(false);
-                    setTimeout(() => {
-                      if (confirm('确认清空所有聊天记录与心声？此操作不可恢复。')) {
-                        onClearChat();
-                      }
-                    }, 100);
-                  }
-                }} 
-                className="w-full flex items-center justify-center gap-2 py-[15px] active:bg-gray-200/50 bg-white"
-              >
-                <Trash2 size={18} className="text-[#ee0a24]" />
-                <span className="text-[16px] text-[#ee0a24] font-medium">清空聊天记录</span>
-              </button>
             </div>
             <button 
               onClick={() => setShowTimestampMenu(false)}
@@ -4597,7 +4696,7 @@ const WechatScreen = ({
   onAddFriend: (persona: any) => void;
   onOpenMyProfile?: () => void;
   onSetRemark?: (friendId: string, remark: string) => void;
-  onDeleteMessages?: (friendId: string, messageIds: number[]) => void;
+  onDeleteMessages?: (friendId: string, messageIds: number[]) => Promise<void> | void;
   onEditMessage?: (friendId: string, msgId: number, newText: string) => void;
   onClearChat?: (friendId: string) => void;
   onTriggerAI?: (friendId: string) => void;
@@ -4749,7 +4848,16 @@ const WechatScreen = ({
                 const friend = friends.find(f => f.id === friendId);
                 if (!friend) return null;
                 const msgs = chats[friendId];
+                // 找最后一条非 system 且文本有意义的消息作为预览
+                const previewMsg = [...msgs].reverse().find(m => {
+                  if (m.msgType === 'system') return false;
+                  const t = (m.text || '').replace(/\[LOCATION:.*?\]/g, '').trim();
+                  return t.length > 0;
+                }) || msgs[msgs.length - 1];
                 const lastMsg = msgs[msgs.length - 1];
+                const previewText = previewMsg
+                  ? (previewMsg.text || '').replace(/\[LOCATION:.*?\]/g, '').trim()
+                  : '';
                 return (
                   <div 
                     key={friendId}
@@ -4771,7 +4879,7 @@ const WechatScreen = ({
                         </span>
                       </div>
                       <span className="text-[13px] text-[#999999] text-ellipsis whitespace-nowrap overflow-hidden font-light">
-                        {lastMsg ? lastMsg.text : ''}
+                        {previewText}
                       </span>
                     </div>
                   </div>

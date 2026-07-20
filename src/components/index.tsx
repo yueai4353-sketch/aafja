@@ -185,13 +185,14 @@ export function AppIcon({ icon, label, onClick, className = "" }: { icon: React.
           {icon}
         </div>
       </div>
-      <span className="text-[10px] sm:text-[12px] md:text-[13px] text-gray-700 font-medium tracking-wide whitespace-nowrap drop-shadow-sm">{label}</span>
+      <span className="text-[10px] sm:text-[12px] md:text-[13px] text-gray-700 font-medium tracking-wide whitespace-nowrap drop-shadow-sm select-none">{label}</span>
     </div>
   );
 }
 
 export * from './SortableAppIcon';
 export * from './IconYouAndMe';
+export * from './ProfileCard';
 
 export const ToggleSwitch = ({ checked, onChange }: { checked: boolean, onChange: (val: boolean) => void }) => (
   <div 

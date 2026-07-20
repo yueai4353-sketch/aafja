@@ -403,7 +403,7 @@ export const WorldbookApp = ({ onBack, key }: { onBack: () => void, key?: React.
             ) : (
               <div className="p-4 flex flex-col gap-4">
                 {groupedBooks().map(({ cat, items }) => {
-                  const isExpanded = expandedCategories[cat] !== false; // 默认展开
+                  const isExpanded = expandedCategories[cat] === true; // 默认折叠
                   return (
                     <div key={cat} className="flex flex-col gap-2">
                       {/* 分类标题行 */}

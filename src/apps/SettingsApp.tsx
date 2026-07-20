@@ -1,9 +1,78 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Moon, Signal, Wifi, Battery, ChevronLeft, Plus, Globe, ChevronDown, ChevronUp, Download, Upload, Trash2 } from 'lucide-react';
+import { Moon, Signal, Wifi, Battery, ChevronLeft, Plus, Globe, ChevronDown, ChevronUp, Download, Upload, Trash2, Check } from 'lucide-react';
 import { CurrentTime } from '../components';
 import { exportAppData, importAppData } from '../utils/backupManager';
 import { DexieChatDB } from '../db';
+
+// 自定义模型选择器，避免原生 select 在 overflow-hidden 容器中无法弹出的问题
+const ModelSelect = ({
+  value,
+  onChange,
+  options,
+  disabled,
+  placeholder = '-- 请先测试连接以加载模型 --',
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: { id: string; name: string }[];
+  disabled?: boolean;
+  placeholder?: string;
+}) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const displayLabel = options.find(o => o.id === value)?.name ?? (value || placeholder);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen(v => !v)}
+        className={`w-full flex items-center justify-between bg-white border rounded-xl px-4 py-3 text-[14px] text-left transition-all font-light
+          ${disabled
+            ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed'
+            : 'border-gray-200 text-gray-600 cursor-pointer active:bg-gray-50'
+          }`}
+      >
+        <span className="truncate">{displayLabel}</span>
+        <ChevronDown size={14} className={`shrink-0 ml-2 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && options.length > 0 && (
+        <div
+          className="absolute left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-xl overflow-y-auto max-h-48"
+          style={{ top: 'calc(100% + 4px)', zIndex: 9999 }}
+        >
+          {options.map(opt => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => { onChange(opt.id); setOpen(false); }}
+              className={`w-full flex items-center justify-between px-4 py-3 text-[14px] text-left hover:bg-gray-50 transition-colors
+                ${opt.id === value ? 'text-blue-500 font-medium' : 'text-gray-700 font-light'}`}
+            >
+              <span className="truncate">{opt.name}</span>
+              {opt.id === value && <Check size={14} className="shrink-0 ml-2 text-blue-500" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const API_PRESETS = [
   { id: '', name: '-- 选择预设快速填充 --', url: '' },
@@ -516,25 +585,13 @@ export const SettingsApp = ({ onBack, desktopBg, key }: { onBack: () => void, de
             {/* Model Selection */}
             <div>
               <label className="block text-[14px] font-medium text-gray-800 mb-2.5">选择模型</label>
-              <div className="relative">
-                <select 
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  disabled={models.length === 0}
-                  className="w-full appearance-none bg-white border border-gray-200 rounded-xl px-4 py-3 text-[14px] text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#FFF0F5]/80 focus:border-[#fce4ec] transition-all font-light disabled:bg-gray-50 disabled:text-gray-400"
-                >
-                  {models.length === 0 ? (
-                    <option value="">-- 请先测试连接以加载模型 --</option>
-                  ) : (
-                    models.map(m => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))
-                  )}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
-                </div>
-              </div>
+              <ModelSelect
+                value={selectedModel}
+                onChange={setSelectedModel}
+                options={models}
+                disabled={models.length === 0}
+                placeholder="-- 请先测试连接以加载模型 --"
+              />
               <p className="text-[12px] text-gray-400 mt-2 text-center font-light leading-relaxed">
                 测试连接成功后自动加载可用模型
               </p>
@@ -685,25 +742,13 @@ export const SettingsApp = ({ onBack, desktopBg, key }: { onBack: () => void, de
             {/* Memory Model Selection */}
             <div>
               <label className="block text-[14px] font-medium text-gray-800 mb-2.5">记忆模型</label>
-              <div className="relative">
-                <select 
-                  value={memorySelectedModel}
-                  onChange={(e) => setMemorySelectedModel(e.target.value)}
-                  disabled={memoryModels.length === 0}
-                  className="w-full appearance-none bg-white border border-gray-200 rounded-xl px-4 py-3 text-[14px] text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#FFF0F5]/80 focus:border-[#fce4ec] transition-all font-light disabled:bg-gray-50 disabled:text-gray-400"
-                >
-                  {memoryModels.length === 0 ? (
-                    <option value="">-- 请先测试连接以加载模型 --</option>
-                  ) : (
-                    memoryModels.map(m => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))
-                  )}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
-                </div>
-              </div>
+              <ModelSelect
+                value={memorySelectedModel}
+                onChange={setMemorySelectedModel}
+                options={memoryModels}
+                disabled={memoryModels.length === 0}
+                placeholder="-- 请先测试连接以加载模型 --"
+              />
               <p className="text-[12px] text-gray-400 mt-2 text-center font-light leading-relaxed">
                 留空则使用主API模型
               </p>

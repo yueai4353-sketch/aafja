@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Moon, Signal, Wifi, Battery, ChevronLeft, ChevronRight, Search, Gem, BookOpen, Lightbulb, Heart, UserCircle, Palette, LineChart, Settings, Plus, Clock, Star } from 'lucide-react';
 import { CurrentTime } from '../components';
+import {
+  loadAboutYouEntries, saveAboutYouEntries,
+  loadPlotMemories, savePlotMemories,
+} from '../db/youandme';
 
 interface MemoryAppProps {
   onBack: () => void;
@@ -283,7 +287,7 @@ const PlotMemory = ({ onBack }: { onBack: () => void }) => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   });
 
-  const [memories, setMemories] = useState<any[]>([]);
+  const [memories, setMemories] = useState<any[]>(() => loadPlotMemories());
   const [selectedYear, setSelectedYear] = useState<string | null>(null);
 
   const dateInputRef = React.useRef<HTMLInputElement>(null);
@@ -370,6 +374,10 @@ const PlotMemory = ({ onBack }: { onBack: () => void }) => {
     setDate(record.date);
     setShowAddModal(true);
   };
+
+  useEffect(() => {
+    savePlotMemories(memories);
+  }, [memories]);
 
   const handleDeleteMemory = (record: any) => {
     setMemories(prev => prev.filter(m => m.timestamp !== record.timestamp));
@@ -768,9 +776,413 @@ const PlotMemory = ({ onBack }: { onBack: () => void }) => {
   );
 };
 
+// 了解你条目数据类型
+interface AboutYouEntry {
+  id: number;
+  category: string;
+  target: string;
+  key: string;
+  value: string;
+  createdAt: string;
+}
+
+// 了解你分类详情组件
+const AboutYouCategoryDetail = ({ category, entries, onBack, onEdit, onDelete }: { category: string, entries: AboutYouEntry[], onBack: () => void, onEdit: (entry: AboutYouEntry) => void, onDelete: (id: number) => void }) => {
+  return (
+    <motion.div 
+      initial={{ opacity: 0, x: 50 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 50 }}
+      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+      className="absolute inset-0 bg-[#FBFBFB] z-[100] flex flex-col"
+    >
+      {/* 顶部状态栏 */}
+      <div className="flex justify-between items-center px-6 pt-3 pb-2 text-[13px] font-medium text-gray-800 shrink-0 bg-transparent relative z-10">
+        <div className="flex items-center">
+          <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
+        </div>
+        <div className="flex items-center gap-1.5 opacity-60">
+          <Signal size={14} strokeWidth={2.5} />
+          <div className="font-bold tracking-tighter text-[10px] uppercase">5G</div>
+          <Wifi size={14} strokeWidth={2.5} />
+          <Battery size={16} strokeWidth={2} />
+        </div>
+      </div>
+
+      {/* 标题栏 */}
+      <div className="px-5 py-2 flex items-center justify-between relative shrink-0 border-b border-gray-100/50 pb-4">
+        <button 
+          onClick={onBack}
+          className="p-2 -ml-2 rounded-full active:bg-gray-200 transition-colors z-10"
+        >
+          <ChevronLeft size={24} className="text-gray-800" strokeWidth={2} />
+        </button>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <h1 className="text-[17px] font-medium text-gray-900 tracking-wide">
+            {category}
+          </h1>
+        </div>
+      </div>
+
+      {/* 内容区域 */}
+      <div className="flex-1 overflow-y-auto px-5 pt-6 pb-10 space-y-4">
+        {entries.map(entry => (
+          <div key={entry.id} className="bg-white border border-[#E8F0E4] rounded-2xl p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+            <h3 className="text-[16px] font-bold text-gray-900 mb-3">{entry.key}</h3>
+            <p className="text-[14px] text-gray-700 mb-5 leading-relaxed">{entry.value}</p>
+            
+            <div className="flex flex-wrap items-center gap-2 mb-6">
+              <span className="bg-[#E8F0E4]/60 text-[#7A9E72] px-3 py-1 rounded-full text-[12px]">关于{entry.target}</span>
+              <span className="bg-pink-50/80 text-[#E5B5B5] px-3 py-1 rounded-full text-[12px]">你确认过</span>
+              <span className="bg-[#E8F0E4]/60 text-[#7A9E72] px-3 py-1 rounded-full text-[12px]">100%</span>
+            </div>
+            
+            <div className="flex items-end justify-between">
+              <p className="text-[12px] text-gray-400">首次 {entry.createdAt.replace(/-/g, '-')}</p>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => onEdit(entry)}
+                  className="px-5 py-2 rounded-xl border border-[#E8F0E4] text-gray-600 text-[13px] active:bg-gray-50 transition-colors"
+                >
+                  修正
+                </button>
+                <button 
+                  onClick={() => onDelete(entry.id)}
+                  className="px-5 py-2 rounded-xl border border-[#E8F0E4] text-[#E5B5B5] text-[13px] active:bg-pink-50 transition-colors"
+                >
+                  删除
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+};
+
+// 了解你界面组件
+const AboutYouMemory = ({ onBack }: { onBack: () => void }) => {
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [category, setCategory] = useState('事实');
+  const [target, setTarget] = useState('对方');
+  const [keyInput, setKeyInput] = useState('');
+  const [valueInput, setValueInput] = useState('');
+  const [entries, setEntries] = useState<AboutYouEntry[]>(() => loadAboutYouEntries());
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number, key: string } | null>(null);
+
+  const CATEGORY_OPTIONS = ['事实', '偏好', '习惯', '关系', '计划', '仪式', '信念', '禁忌', '专属梗'];
+  const TARGET_OPTIONS = ['对方', '共同的'];
+
+  // 每次 entries 变化时持久化
+  useEffect(() => {
+    saveAboutYouEntries(entries);
+  }, [entries]);
+
+  const resetForm = () => {
+    setCategory('事实');
+    setTarget('对方');
+    setKeyInput('');
+    setValueInput('');
+    setEditingId(null);
+  };
+
+  const handleAdd = () => {
+    if (!keyInput.trim() || !valueInput.trim()) return;
+    
+    if (editingId) {
+      setEntries(prev => prev.map(e => 
+        e.id === editingId 
+          ? { ...e, category, target, key: keyInput.trim(), value: valueInput.trim() }
+          : e
+      ));
+    } else {
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const newEntry: AboutYouEntry = {
+        id: Date.now(),
+        category,
+        target,
+        key: keyInput.trim(),
+        value: valueInput.trim(),
+        createdAt: dateStr,
+      };
+      setEntries(prev => [newEntry, ...prev]);
+    }
+    
+    setShowAddModal(false);
+    resetForm();
+  };
+
+  const handleEdit = (entry: AboutYouEntry) => {
+    setEditingId(entry.id);
+    setCategory(entry.category);
+    setTarget(entry.target);
+    setKeyInput(entry.key);
+    setValueInput(entry.value);
+    setShowAddModal(true);
+  };
+
+  const handleDeleteRequest = (entry: AboutYouEntry) => {
+    setDeleteConfirm({ id: entry.id, key: entry.key });
+  };
+
+  const handleDeleteConfirmed = () => {
+    if (deleteConfirm) {
+      setEntries(prev => prev.filter(e => e.id !== deleteConfirm.id));
+      setDeleteConfirm(null);
+    }
+  };
+
+  // 按分类分组
+  const grouped = CATEGORY_OPTIONS.reduce((acc, cat) => {
+    const items = entries.filter(e => e.category === cat);
+    if (items.length > 0) acc[cat] = items;
+    return acc;
+  }, {} as Record<string, AboutYouEntry[]>);
+
+  const usedCategories = CATEGORY_OPTIONS.filter(c => grouped[c]);
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, x: 50 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 50 }}
+      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+      className="absolute inset-0 bg-[#FBFBFB] z-[90] flex flex-col"
+    >
+      {/* 顶部状态栏 */}
+      <div className="flex justify-between items-center px-6 pt-3 pb-2 text-[13px] font-medium text-gray-800 shrink-0 bg-transparent relative z-10">
+        <div className="flex items-center">
+          <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
+        </div>
+        <div className="flex items-center gap-1.5 opacity-60">
+          <Signal size={14} strokeWidth={2.5} />
+          <div className="font-bold tracking-tighter text-[10px] uppercase">5G</div>
+          <Wifi size={14} strokeWidth={2.5} />
+          <Battery size={16} strokeWidth={2} />
+        </div>
+      </div>
+
+      {/* 标题栏 */}
+      <div className="px-5 py-2 flex items-center justify-between relative shrink-0 border-b border-gray-100/50 pb-4">
+        <button 
+          onClick={onBack}
+          className="p-2 -ml-2 rounded-full active:bg-gray-200 transition-colors z-10"
+        >
+          <ChevronLeft size={24} className="text-gray-800" strokeWidth={2} />
+        </button>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <h1 className="text-[17px] font-medium text-gray-900 tracking-wide">
+            了解你
+          </h1>
+        </div>
+        <button 
+          onClick={() => setShowAddModal(true)}
+          className="p-2 -mr-2 rounded-full active:bg-gray-200 transition-colors z-10"
+        >
+          <Plus size={24} className="text-[#E5B5B5]" strokeWidth={1.5} />
+        </button>
+      </div>
+
+      {/* 内容区域 */}
+      <div className="flex-1 overflow-y-auto px-5 pt-6 pb-10">
+        {entries.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full pb-20 text-center">
+            <p className="text-[14px] text-[#A3B39B] mb-5 tracking-wide">还没有语义记忆</p>
+            <div className="text-[13px] text-[#C2C2C2] leading-[26px] tracking-wide font-light flex flex-col items-center gap-1">
+              <p>每天和 char 聊天会自动提取关于你的语义记忆</p>
+              <p>也可以点击右上角 + 手动添加</p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {usedCategories.map(cat => (
+              <div 
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className="bg-white border border-[#E8F0E4] rounded-2xl p-4 flex items-center justify-between shadow-[0_2px_10px_rgba(0,0,0,0.02)] active:scale-[0.98] transition-transform cursor-pointer"
+              >
+                <div className="text-[15px] text-gray-800 font-medium">
+                  {cat}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[13px] text-gray-400">{grouped[cat].length} 条</span>
+                  <ChevronRight size={18} className="text-gray-300" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 分类详情页 */}
+      <AnimatePresence>
+        {selectedCategory && (
+          <AboutYouCategoryDetail 
+            category={selectedCategory}
+            entries={grouped[selectedCategory] || []}
+            onBack={() => setSelectedCategory(null)}
+            onEdit={handleEdit}
+            onDelete={(id) => {
+              const entry = entries.find(e => e.id === id);
+              if (entry) handleDeleteRequest(entry);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* 删除确认弹窗 */}
+      <AnimatePresence>
+        {deleteConfirm && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] bg-black/40 flex items-center justify-center px-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-3xl w-full max-w-[300px] p-6 shadow-xl text-center"
+            >
+              <p className="text-[16px] font-bold text-gray-800 mb-2">确认删除？</p>
+              <p className="text-[13px] text-gray-500 mb-7 leading-relaxed">
+                将永久删除「{deleteConfirm.key}」，此操作不可撤销。
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-[#E8F0E4] text-gray-600 text-[14px] active:bg-gray-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleDeleteConfirmed}
+                  className="flex-1 py-2.5 rounded-xl bg-[#E5B5B5] text-white text-[14px] active:bg-[#d9a0a0] transition-colors"
+                >
+                  删除
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 添加弹窗 */}
+      <AnimatePresence>
+        {showAddModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-black/40 flex items-center justify-center px-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-3xl w-full max-w-[340px] p-6 shadow-xl"
+            >
+              <h2 className="text-[17px] font-bold text-gray-800 mb-6">{editingId ? '编辑' : '添加'}</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[13px] text-gray-500 mb-2">分类</label>
+                  <div className="relative">
+                    <select 
+                      value={category}
+                      onChange={e => setCategory(e.target.value)}
+                      className="w-full appearance-none border border-[#E8F0E4] rounded-xl px-4 py-3 text-[14px] text-gray-800 bg-white focus:outline-none focus:border-[#7A9E72] focus:ring-1 focus:ring-[#7A9E72]/20"
+                    >
+                      {CATEGORY_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none flex flex-col">
+                      <ChevronRight size={14} className="text-gray-600 -rotate-90 -mb-1" strokeWidth={3} />
+                      <ChevronRight size={14} className="text-gray-600 rotate-90" strokeWidth={3} />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[13px] text-gray-500 mb-2">对象</label>
+                  <div className="relative">
+                    <select 
+                      value={target}
+                      onChange={e => setTarget(e.target.value)}
+                      className="w-full appearance-none border border-[#E8F0E4] rounded-xl px-4 py-3 text-[14px] text-gray-800 bg-white focus:outline-none focus:border-[#7A9E72] focus:ring-1 focus:ring-[#7A9E72]/20"
+                    >
+                      {TARGET_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none flex flex-col">
+                      <ChevronRight size={14} className="text-gray-600 -rotate-90 -mb-1" strokeWidth={3} />
+                      <ChevronRight size={14} className="text-gray-600 rotate-90" strokeWidth={3} />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[13px] text-gray-500 mb-2">
+                    键 <span className="text-[#E5B5B5]">*</span>
+                  </label>
+                  <input 
+                    type="text"
+                    value={keyInput}
+                    onChange={e => setKeyInput(e.target.value)}
+                    placeholder="如：喜欢的咖啡"
+                    className="w-full border border-[#E8F0E4] rounded-xl px-4 py-3 text-[14px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#7A9E72] focus:ring-1 focus:ring-[#7A9E72]/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[13px] text-gray-500 mb-2">
+                    值 <span className="text-[#E5B5B5]">*</span>
+                  </label>
+                  <textarea 
+                    value={valueInput}
+                    onChange={e => setValueInput(e.target.value)}
+                    placeholder="如：喝美式不加糖"
+                    className="w-full h-[100px] resize-none border border-[#E8F0E4] rounded-xl px-4 py-3 text-[14px] text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#7A9E72] focus:ring-1 focus:ring-[#7A9E72]/20"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-8">
+                <button 
+                  onClick={() => { setShowAddModal(false); resetForm(); }}
+                  className="px-6 py-2.5 rounded-xl border border-[#E8F0E4] text-gray-600 text-[14px] active:bg-gray-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button 
+                  onClick={handleAdd}
+                  disabled={!keyInput.trim() || !valueInput.trim()}
+                  className="px-6 py-2.5 rounded-xl border border-[#7A9E72] text-[#7A9E72] text-[14px] active:bg-[#F2F7F0] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {editingId ? '保存' : '添加'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
+
 // 记忆海界面组件
 const MemorySea = ({ onBack }: { onBack: () => void }) => {
   const [showPlotMemory, setShowPlotMemory] = useState(false);
+  const [showAboutYou, setShowAboutYou] = useState(false);
 
   return (
     <motion.div 
@@ -835,7 +1247,10 @@ const MemorySea = ({ onBack }: { onBack: () => void }) => {
           </div>
         </div>
 
-        <div className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center justify-between shadow-[0_2px_10px_rgba(0,0,0,0.02)] active:scale-[0.98] transition-transform cursor-pointer">
+        <div 
+          onClick={() => setShowAboutYou(true)}
+          className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center justify-between shadow-[0_2px_10px_rgba(0,0,0,0.02)] active:scale-[0.98] transition-transform cursor-pointer"
+        >
           <div className="flex items-center gap-3">
             <Lightbulb size={20} className="text-gray-400" strokeWidth={1.5} />
             <span className="text-[15px] text-gray-800 font-medium">了解你</span>
@@ -897,6 +1312,9 @@ const MemorySea = ({ onBack }: { onBack: () => void }) => {
       <AnimatePresence>
         {showPlotMemory && (
           <PlotMemory onBack={() => setShowPlotMemory(false)} />
+        )}
+        {showAboutYou && (
+          <AboutYouMemory onBack={() => setShowAboutYou(false)} />
         )}
       </AnimatePresence>
     </motion.div>

@@ -206,23 +206,75 @@ async function startServer() {
   // Weather proxy route — avoids browser CORS restrictions with wttr.in
   app.get("/api/weather", async (req, res) => {
     const city = (req.query.city as string || '').trim();
+    console.log('[Weather API] Request received for city:', city);
+    
     if (!city) {
+      console.log('[Weather API] Error: Missing city parameter');
       return res.status(400).json({ error: '缺少 city 参数' });
     }
+    
     try {
       const url = `https://wttr.in/${encodeURIComponent(city)}?format=j1`;
+      console.log('[Weather API] Fetching from wttr.in:', url);
+      
       const response = await fetch(url, {
-        headers: { 'User-Agent': 'curl/7.68.0' }
+        headers: { 
+          'User-Agent': 'curl/7.68.0',
+          'Accept': 'application/json'
+        },
+        signal: AbortSignal.timeout(15000) // 15秒超时
       });
+      
+      console.log('[Weather API] wttr.in response status:', response.status);
+      
       if (!response.ok) {
         const text = await response.text();
-        return res.status(response.status).json({ error: `wttr.in 返回错误: ${response.status} ${text.slice(0, 200)}` });
+        console.error('[Weather API] wttr.in error response:', text.slice(0, 200));
+        return res.status(response.status).json({ 
+          error: `wttr.in 返回错误: ${response.status}`,
+          details: text.slice(0, 200)
+        });
       }
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('[Weather API] Non-JSON response from wttr.in:', text.slice(0, 200));
+        return res.status(500).json({ 
+          error: '天气服务返回了非JSON格式的数据',
+          details: text.slice(0, 200)
+        });
+      }
+      
       const data = await response.json();
+      console.log('[Weather API] Successfully fetched weather data for:', city);
+      
+      // 验证返回数据的基本结构
+      if (!data.current_condition || !data.weather) {
+        console.error('[Weather API] Invalid data structure:', JSON.stringify(data).slice(0, 200));
+        return res.status(500).json({ 
+          error: '天气数据格式异常',
+          details: 'Missing required fields: current_condition or weather'
+        });
+      }
+      
       res.json(data);
     } catch (err: any) {
-      console.error('Weather proxy error:', err);
-      res.status(500).json({ error: err?.message || '天气代理请求失败' });
+      console.error('[Weather API] Exception:', err);
+      
+      // 区分不同类型的错误
+      if (err.name === 'AbortError') {
+        return res.status(504).json({ error: '天气服务请求超时，请重试' });
+      }
+      
+      if (err.message.includes('fetch')) {
+        return res.status(503).json({ error: '无法连接到天气服务，请检查网络连接' });
+      }
+      
+      res.status(500).json({ 
+        error: err?.message || '天气代理请求失败',
+        type: err?.name || 'Unknown'
+      });
     }
   });
 
@@ -236,7 +288,12 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+    // Only catch non-API routes for SPA fallback
+    app.get('*', (req, res) => {
+      // Skip API routes
+      if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ error: 'API endpoint not found' });
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
