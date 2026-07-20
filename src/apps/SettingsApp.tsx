@@ -853,7 +853,7 @@ export const SettingsApp = ({ onBack, desktopBg, key }: { onBack: () => void, de
           <input
             ref={importFileRef}
             type="file"
-            accept=".json"
+            accept=".json,.fhjl,.gz"
             className="hidden"
             onChange={handleImportFile}
           />

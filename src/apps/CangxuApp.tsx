@@ -239,7 +239,7 @@ export const CangxuApp = ({
     setIsGeneratingHouse(true);
     setShowGenerateModal(false);
     try {
-      console.log('[藏叙] 开始生成房屋结构');
+      console.log('[藏叙] 开始生成房屋结构, 设计思路:', generateDesignInput);
       
       // 获取选中的住户信息
       const residents = selectedResidents.map(id => {
@@ -605,7 +605,7 @@ export const CangxuApp = ({
               </button>
               <button 
                 className={`w-10 h-10 bg-white/5 backdrop-blur-md rounded-full border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors ${isGeneratingHouse ? 'opacity-50 cursor-not-allowed' : ''}`}
-                onClick={handleGenerateHouse}
+                onClick={() => setShowGenerateModal(true)}
                 disabled={isGeneratingHouse}
               >
                 <RefreshCw size={18} className={`text-white/80 ${isGeneratingHouse ? 'animate-spin' : ''}`} strokeWidth={1.5} />
@@ -1505,6 +1505,56 @@ export const CangxuApp = ({
           animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
       `}} />
+
+      {/* 房屋生成弹窗 */}
+      {showGenerateModal && (
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 pointer-events-auto">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-sm bg-gray-900/80 border border-white/20 rounded-[28px] overflow-hidden backdrop-blur-xl shadow-2xl"
+          >
+            <div className="relative flex items-center justify-center p-5 border-b border-white/10">
+              <h2 className="text-white font-medium tracking-wider">生成房屋结构</h2>
+              <button 
+                onClick={() => setShowGenerateModal(false)}
+                className="absolute right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors"
+              >
+                <X size={18} className="text-white/60" />
+              </button>
+            </div>
+            
+            <div className="p-5 flex flex-col gap-5">
+              <div>
+                <label className="block text-xs text-white/50 mb-2 ml-1">设计思路 (可选)</label>
+                <textarea 
+                  value={generateDesignInput}
+                  onChange={(e) => setGenerateDesignInput(e.target.value)}
+                  placeholder="例如：一座位于山顶的现代玻璃别墅，带有无边泳池..."
+                  className="w-full h-28 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 outline-none focus:border-white/30 transition-colors resize-none text-sm select-text touch-auto"
+                  onPointerDown={(e) => e.stopPropagation()}
+                />
+              </div>
+
+              <div className="flex gap-3 mt-2">
+                <button 
+                  className="flex-1 py-3.5 bg-white/10 border border-white/10 text-white font-medium tracking-widest rounded-xl hover:bg-white/20 transition-colors"
+                  onClick={() => setShowGenerateModal(false)}
+                >
+                  取消
+                </button>
+                <button 
+                  className="flex-1 py-3.5 bg-white text-black font-medium tracking-widest rounded-xl hover:bg-white/90 transition-colors flex items-center justify-center gap-2"
+                  onClick={handleGenerateHouse}
+                >
+                  <Bot size={16} />
+                  开始生成
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </motion.div>
   );
 };
