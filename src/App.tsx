@@ -1369,8 +1369,10 @@ export default function App() {
 
   return (
     <div 
-      className="h-[100dvh] w-full flex justify-center overflow-hidden relative"
+      className="w-full flex justify-center overflow-hidden relative"
       style={{
+        height: '100dvh',
+        minHeight: '-webkit-fill-available',
         background: desktopBg 
           ? `url(${desktopBg}) center/cover no-repeat` 
           : 'linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%)'
@@ -1477,7 +1479,7 @@ export default function App() {
 
       {/* OS Container */}
       <div 
-        className="relative w-full max-w-7xl h-full sm:h-[95vh] sm:my-auto sm:rounded-[40px] flex flex-col overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.05)] sm:border sm:border-gray-200/50"
+        className="relative w-full max-w-7xl h-full sm:h-[95dvh] sm:my-auto sm:rounded-[40px] flex flex-col overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.05)] sm:border sm:border-gray-200/50"
         style={{
           background: desktopBg 
             ? `url(${desktopBg}) center/cover no-repeat` 

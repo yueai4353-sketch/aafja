@@ -18,31 +18,49 @@
 }
 
 @layer base {
-  html, body {
-    width: 100vw;
-    height: 100dvh;
+  html {
+    width: 100%;
+    height: 100%;
     margin: 0;
     padding: 0;
     overflow: hidden;
     overscroll-behavior: none;
     touch-action: pan-x pan-y;
     box-sizing: border-box;
+    /* iOS PWA safe-area: 确保内容延伸到安全区边缘 */
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
-    /* 默认背景与 App 默认渐变一致，避免 safe-area 区域留白 */
+    width: 100%;
+    /* 使用 100dvh 确保 iOS Safari/PWA 底部不留白 */
+    height: 100dvh;
+    height: -webkit-fill-available;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: pan-x pan-y;
+    box-sizing: border-box;
+    /* 默认背景与 App 默认渐变一致，覆盖 safe-area 区域 */
     background: linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%);
+    /* iOS PWA: 让背景延伸到整个屏幕包括安全区 */
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
   }
 
   #root {
-    width: 100vw;
+    width: 100%;
     height: 100dvh;
+    height: -webkit-fill-available;
     overflow: hidden;
     overscroll-behavior: none;
     touch-action: pan-x pan-y;
     box-sizing: border-box;
     /* 不在 #root 上添加 safe-area padding，各页面自行处理 */
     padding: 0;
+    /* iOS safe-area: 底部安全区由子组件自行处理 padding */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
 
@@ -73,6 +91,14 @@
   .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.05);
+  }
+
+  /* iOS safe-area 工具类 */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
   }
 }
 
@@ -188,4 +214,13 @@
   border-radius: 6px;
   object-fit: contain;
   display: block;
+}
+
+/* ============ iOS PWA 全屏适配 ============ */
+/* 确保 iOS standalone 模式下页面占满全屏，不出现白色安全区 */
+@supports (padding: env(safe-area-inset-bottom)) {
+  body {
+    /* 让 body 背景覆盖到安全区 */
+    padding: 0;
+  }
 }
