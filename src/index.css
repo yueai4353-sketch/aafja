@@ -27,13 +27,15 @@
     overscroll-behavior: none;
     touch-action: pan-x pan-y;
     box-sizing: border-box;
-    /* iOS PWA safe-area: 确保内容延伸到安全区边缘 */
     -webkit-text-size-adjust: 100%;
+    /* iOS Safari: html 也设置背景色兜底，防止任何白色泄漏 */
+    background: linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%);
   }
 
   body {
     width: 100%;
-    /* 使用 100dvh 确保 iOS Safari/PWA 底部不留白 */
+    /* iOS Safari: 多重高度声明确保覆盖所有情况 */
+    height: 100vh;
     height: 100dvh;
     height: -webkit-fill-available;
     margin: 0;
@@ -44,21 +46,29 @@
     box-sizing: border-box;
     /* 默认背景与 App 默认渐变一致，覆盖 safe-area 区域 */
     background: linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%);
-    /* iOS PWA: 让背景延伸到整个屏幕包括安全区 */
+    /* iOS Safari: 确保背景覆盖超出视口的区域（overscroll 白底问题） */
+    background-attachment: fixed;
+    min-height: 100vh;
     min-height: 100dvh;
     min-height: -webkit-fill-available;
+    /* iOS: 防止 overscroll 露出白底 */
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
   }
 
   #root {
     width: 100%;
-    height: 100dvh;
-    height: -webkit-fill-available;
+    height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
     touch-action: pan-x pan-y;
     box-sizing: border-box;
-    /* 不添加任何 safe-area padding，界面完全占满全屏 */
     padding: 0;
+    /* iOS Safari: 继承 body 的 fixed 定位，确保填满整个可见区域 */
+    position: relative;
   }
 }
 
