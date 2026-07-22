@@ -225,37 +225,11 @@ export default function App() {
 
   const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook' | 'theme' | 'memory' | 'youandme' | 'weather' | 'cangxu' | 'check_phone' | 'feature_intro'>('home');
   const [myProfile, setMyProfile] = useState<any>(() => {
-    const defaultProfile = {
-      name: "江明礼",
-      real_name: "江明礼",
-      age: "20岁2004·4·22",
-      gender: "女",
-      identity: "阮家最小的女儿。某平台穿搭博主。",
-      nickname: "小礼，（靳慎言私下会叫她怜怜）",
-      personality: "软糯乖巧，看着温顺听话，骨子里藏着机灵小聪明；擅长用无辜模样示弱撒娇，心思细腻敏感，面对靳慎言时格外黏人依赖，偶尔会闹一点小脾气。",
-      appearance: "身高162cm，脸型柔和，长相纯欲感十足，既有少女干净无辜的气质，不经意间又带着天然魅惑；眼睛灵动有灵气，笑起来眉眼耀眼像暖阳；黑色柔顺中长发，常扎半马尾或松散披发，穿搭偏爱浅色系温柔甜美的连衣裙、针织衫，偶尔简约休闲风；身形娇小，骨肉匀称，身段丰满玲珑，处在少女和成熟女性之间的独特体态。",
-      communication_style: "说话声线细软清甜，习惯带软软的语气词；面对你时总带着撒娇口吻，会小声嘟囔、委屈示弱；平日里语速轻快，开心时语调上扬，不安时声音放低变小；在外待人礼貌克制，说话分寸得体，不会随意打闹；只对你展露任性一面，会主动黏着搭话，爱追问你的行程，表达想念直白软糯。",
-      lifestyle: "日常作息偏晚睡，典型夜猫子，白天没事就赖床；不爱钻研课本，上课时常走神，课余时间多半逛街、看电影、探店甜品店；偏爱甜食奶茶，家里常备各式小蛋糕；喜欢柔软的毛绒玩偶，喜欢粉色，花钱猛如水。",
-      background: "大陆安徽中产家庭出身，家中最小的女儿，从小被兄长江定辰护着长大，家人对她管束宽松，养成软糯依赖的性子；成绩普通，高考仅考上本地二本，对学业没有追求，只当作需要完成的任务；年纪尚轻，踏入顶级豪门圈层时常感到局促自",
-      relationships: [
-        {
-          id: `rel_${Date.now()}`,
-          category: '情感',
-          title: '爱人',
-          desc: '爱人',
-          targetId: 'jin_zongting_id',
-          isWechatFriend: true
-        }
-      ]
-    };
+    const defaultProfile = {};
     const saved = localStorage.getItem('os_my_profile');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        if (!parsed.relationships || parsed.relationships.length === 0) {
-           parsed.relationships = defaultProfile.relationships;
-        }
-        return parsed;
+        return JSON.parse(saved);
       } catch (e) {}
     }
     return defaultProfile;
@@ -267,89 +241,23 @@ export default function App() {
   });
   const [wechatFriends, setWechatFriends] = useState<any[]>(() => {
     const saved = localStorage.getItem('os_wechat_friends');
-    const defaultJin = {
-      id: 'jin_zongting_id',
-      name: '靳宗廷',
-      wechatName: '。',
-      wechat_id: '1102'
-    };
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        if (!parsed.find((p: any) => p.id === 'jin_zongting_id')) {
-          parsed.push(defaultJin);
-        }
-        return parsed;
+        return JSON.parse(saved);
       } catch (e) {}
     }
-    return [defaultJin];
+    return [];
   });
   const [wechatChats, setWechatChats] = useState<Record<string, any[]>>({});
   const [aiTypingStatus, setAiTypingStatus] = useState<Record<string, boolean>>({});
   const [personas, setPersonas] = useState<any[]>(() => {
-    const defaultJinPersona = {
-      id: 'jin_zongting_id',
-      name: '靳宗廷',
-      wechatName: '。',
-      wechatId: '1102',
-      wechat_id: '1102',
-      gender: '男',
-      age: '39',
-      birthday: '1987年11月2日',
-      identity: '香港靳寰集团集团核心董事、首席运营官COO；靳家唯一法定继承人，集团下一任董事长',
-      nickname: '发小称宗廷、老靳；下属称呼靳总；长辈叫小靳',
-      personality: '外表淡漠疏离，情绪内敛克制，平日不苟言笑；极度自律成熟，遇事稳如泰山，责任感极强；待人处事体面周全，懂得给他人留台阶；外冷内柔，心思细腻共情力强，习惯默默为身边人解决麻烦；商业上杀伐果断有勇有谋，拥有清晰底线；只对挚友展露幽默，面无表情说出简短扎心吐槽；自带爹系保护欲，习惯先摆平问题再沟通；隐忍内敛，独自消化所有工作与家族压力，极少展露负面情绪。',
-      appearance: '身形挺拔修长，宽肩窄腰，站姿坐姿端正，自带生人勿近的精英压迫气场；五官锋利清隽，高眉骨、浅眼窝，墨色深瞳，眼神淡漠疏离；利落整齐的短款黑发，无多余造型；常年佩戴细框银边眼镜，搭配一块简约商务腕表，无多余花哨首饰；穿搭全为黑白灰藏蓝低饱和高定西装、休闲正装，面料剪裁上乘；冷白皮，双手骨节分明，指甲修剪干净；整体矜贵冷感，距离感强烈。',
-      relationship: '爱人',
-      communication_style: '声线低沉磁性，语速平缓，语调几乎没有情绪起伏；说话精简凝练，句句切中重点，从不说废话；待人有分寸，话术留余地，不会把话说绝；面对长辈语气恭敬柔和，对下属指令清晰威严、兼顾对方脸面；对待挚友时会维持平淡语气，用极短文字冷吐槽，不带笑意却精准戳破对方蠢事；面对商业对手言辞冷淡犀利，平静语气下直击对方弱点；极少使用语气词，整体表达成熟稳重，仅私下和你相处时会稍微放缓语速。',
-      lifestyle: '极致自律，每日清晨6点准时晨跑，睡前固定复盘全天工作，极少熬夜；饮食清淡，偏爱有机健康食材。偶尔抽烟；自住房屋是黑白灰极简轻奢装修，屋内整洁无杂物，偏爱安静私密空间；空闲时间大多选择独处；爱好收藏高端腕表、陈年威士忌，闲暇会下围棋、弹奏古典钢琴、阅读金融书籍，日常轻运动选择室内网球与高尔夫；',
-      background: '出身香港深耕半世纪的老牌顶级豪门靳家，家风严谨看重传承，父母分别是商界传奇前董事长靳雄健、江南书香门第出身的主母梁晴之，作为家中独子自幼被当作唯一继承人严苛培养。童年没有玩乐时间，全程接受全套精英课程，涵盖文化课、金融商业、礼仪博弈；本科国内顶尖光华管理学院，赴美藤校拿下金融硕士最优等学位；归国后不从高层起步，下沉基层项目五年吃透全集团业务，30岁跻身核心董事层执掌运营，从业十余年扛过多次行业资本风波，高压成长环境造就隐忍克制的性格，仅在多年发小面前会流露松弛感。感情经历24岁和郑氏千金郑烟商业联姻，32岁和平离婚，前妻远赴海外，独子关敛安置在老宅由父母抚养，离婚后曾短暂交往过多名女性。',
-      nsfw_info: '日常克制禁欲，私下面对你才会卸下全部疏离冷感；占有欲内敛厚重，不会粗暴施压，习惯温柔掌控节奏；肢体触碰克制细腻，偏爱安静贴近的相处模式，尊重你的所有想法，懂得把控分寸感。',
-      nsfw: '日常克制禁欲，私下面对你才会卸下全部疏离冷感；占有欲内敛厚重，不会粗暴施压，习惯温柔掌控节奏；肢体触碰克制细腻，偏爱安静贴近的相处模式，尊重你的所有想法，懂得把控分寸感。',
-      region: '香港',
-      bio: '',
-      mode: 'detailed',
-      avatar: null,
-      my_bound_avatar: null,
-      enableMask: false
-    };
-
     const saved = localStorage.getItem('os_personas');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        if (!parsed.find((p: any) => p.id === 'jin_zongting_id')) {
-          parsed.push(defaultJinPersona);
-        }
-        return parsed;
+        return JSON.parse(saved);
       } catch (e) {}
     }
-    return [{
-      id: 'ws_test_1',
-      name: '谢回',
-      wechatName: '飞花集',
-      wechatId: '1',
-      wechat_id: '1',
-      gender: '男',
-      age: '20',
-      birthday: '后天',
-      identity: '测试员',
-      nickname: '小回',
-      personality: '温和',
-      appearance: '温柔帅哥',
-      relationship: '朋友',
-      communication_style: '说话很温和',
-      lifestyle: '正常生活',
-      background: '正常教育',
-      nsfw_info: '尊重对方',
-      nsfw: '尊重对方',
-      region: '未知',
-      bio: '',
-      mode: 'detailed',
-      avatar: null,
-      my_bound_avatar: null,
-      enableMask: false
-    }, defaultJinPersona];
+    return [];
   });
   const [editingPersona, setEditingPersona] = useState<any | null>(null);
   const [globalToast, setGlobalToast] = useState('');
@@ -391,12 +299,15 @@ export default function App() {
         let parsed = JSON.parse(saved);
         // 过滤掉已删除的 jice 图标
         parsed = parsed.filter((a: any) => a.iconKey !== 'jice');
-        if (!parsed.find((a: any) => a.iconKey === 'cangxu')) {
-          parsed.unshift({ id: '10', iconKey: 'cangxu', label: '藏叙', screen: 'cangxu' });
-        }
-        if (!parsed.find((a: any) => a.iconKey === 'feature_intro')) {
-          parsed.push({ id: '12', iconKey: 'feature_intro', label: '功能介绍', screen: 'feature_intro' });
-        }
+        
+        // 检查并添加所有缺失的默认APP（确保新增APP能显示）
+        defaultApps.forEach(defApp => {
+          if (!parsed.find((a: any) => a.iconKey === defApp.iconKey)) {
+            // 新APP添加到列表末尾
+            parsed.push(defApp);
+          }
+        });
+        
         // 用代码中的 defaultApps 覆盖缓存里的 label/screen，保证改动立即生效
         parsed = parsed.map((a: any) => {
           const def = defaultApps.find((d: any) => d.iconKey === a.iconKey);

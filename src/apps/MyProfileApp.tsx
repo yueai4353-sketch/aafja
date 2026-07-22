@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, ChevronLeft, ChevronRight, Moon, Signal, Wifi, Battery } from 'lucide-react';
+import { User, ChevronLeft, ChevronRight, Moon, Signal, Wifi, Battery, Trash2 } from 'lucide-react';
 import { CurrentTime } from '../components';
 import { NetworkManagerScreen } from './CreatePersonaApp';
+import { AppDB } from '../db';
 
 const ToggleSwitch = ({ checked, onChange }: { checked: boolean, onChange: (val: boolean) => void }) => (
   <div 
