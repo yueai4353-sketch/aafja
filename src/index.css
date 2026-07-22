@@ -41,8 +41,7 @@
     height: -webkit-fill-available;
     margin: 0;
     padding: 0;
-    /* 底部安全区：让背景延伸到 home indicator 区域 */
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    /* 移除 padding-bottom，让内容完全延伸到底部 */
     overflow: hidden;
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
@@ -51,6 +50,9 @@
     /* 统一背景色：与应用渐变一致，消除任何白边 */
     background: linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%);
     background-attachment: fixed;
+    /* 强制背景延伸到底部安全区域 */
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
   }
 
   #root {
