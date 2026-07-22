@@ -149,6 +149,14 @@ export const IconMemories = () => (
   </svg>
 );
 
+export const IconFeatureIntro = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 2L13.5 8.5L20 7L15.5 12L20 17L13.5 15.5L12 22L10.5 15.5L4 17L8.5 12L4 7L10.5 8.5L12 2Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+    <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.2"/>
+    <circle cx="12" cy="12" r="1" fill="currentColor"/>
+  </svg>
+);
+
 export const IconPeriod = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M12 4 C15 7, 20 11, 20 15 C20 19, 16 22, 12 22 C8 22, 4 19, 4 15 C4 11, 9 7, 12 4 Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>

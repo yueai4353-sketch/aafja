@@ -148,13 +148,15 @@ ${worldbookSection}
 
 你需要从以下聊天记录中提取两类记忆并以 JSON 格式输出：
 
-**第一步：情节记忆**
-分析聊天记录，提取发生的重要事件。每条情节记忆包含：
+**第一步：情节记忆（只能生成一条）**
+分析聊天记录，提取这批对话中最重要的一个事件，只输出一条情节记忆。包含：
 - date: 事件发生日期（格式 YYYY-MM-DD，如不确定月日则只写年份如"2026"）
 - content: 以你（角色）的第一人称视角，简短描述发生了什么（1-2句话）
 - theme: 事件主题标签（2-4字，如"甜蜜互动"、"争执和好"、"日常闲聊"）
 - emotion: 你（角色）对这件事的情绪（严格两个字，如"温馨"、"期待"、"心疼"）
 - importance: 重要性评分（1-10 的整数，10最重要）
+
+⚠️ 注意：plotMemories 数组中只能有一条记录，选择这批聊天中最有意义、最值得记住的一个事件。
 
 **第二步：了解你**
 分析聊天记录，提取关于人物的语义记忆。每条了解你包含：
@@ -290,8 +292,10 @@ export async function summarizeChatBatch(
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     if (Array.isArray(parsed.plotMemories)) {
+      // 强制只取第一条情节记忆（即使 LLM 返回了多条）
+      const plotSource = parsed.plotMemories.slice(0, 1);
       const existingPlot = loadPlotMemories();
-      const newPlot: PlotMemoryEntry[] = parsed.plotMemories.map((item: any) => {
+      const newPlot: PlotMemoryEntry[] = plotSource.map((item: any) => {
         const dateStr = item.date || todayStr;
         // 判断是否包含月份信息
         const hasMonth = /^\d{4}-\d{2}(-\d{2})?$/.test(dateStr);

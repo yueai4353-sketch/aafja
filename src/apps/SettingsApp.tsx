@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Moon, Signal, Wifi, Battery, ChevronLeft, Plus, Globe, ChevronDown, ChevronUp, Download, Upload, Trash2, Check } from 'lucide-react';
 import { CurrentTime } from '../components';
+import { AboutModal } from '../components/AboutModal';
 import { exportAppData, importAppData } from '../utils/backupManager';
 import { DexieChatDB } from '../db';
 
@@ -109,6 +110,7 @@ export const SettingsApp = ({ onBack, desktopBg, key }: { onBack: () => void, de
   const [expandedCard, setExpandedCard] = useState<'main' | 'memory' | ''>('');
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
 
   // Data management
   const importFileRef = useRef<HTMLInputElement>(null);
@@ -441,6 +443,9 @@ export const SettingsApp = ({ onBack, desktopBg, key }: { onBack: () => void, de
         </div>
       )}
 
+      {/* About Modal */}
+      <AboutModal isOpen={showAboutModal} onClose={() => setShowAboutModal(false)} />
+
       {/* Settings Header */}
       <div className="flex items-center justify-between px-4 py-4 shrink-0 mt-2 relative z-10">
         <div className="flex items-center">
@@ -448,9 +453,29 @@ export const SettingsApp = ({ onBack, desktopBg, key }: { onBack: () => void, de
             <ChevronLeft size={20} strokeWidth={2.5} className="mr-0.5" />
           </button>
         </div>
-        <button className="px-5 py-2 bg-white/90 backdrop-blur-md rounded-full text-[14px] font-medium text-blue-500 shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-95 transition-transform">
-          保存
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setShowAboutModal(true)}
+            className="w-10 h-10 flex items-center justify-center bg-white/90 backdrop-blur-md rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-95 transition-transform"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600">
+              <path d="M12 5c-1.5-2-4-2-5-1s-2 3 0 5c1 1 2 1.5 3 3"/>
+              <path d="M12 5c1.5-2 4-2 5-1s2 3 0 5c-1 1-2 1.5-3 3"/>
+              <circle cx="9" cy="10" r="0.5" fill="currentColor" stroke="none"/>
+              <circle cx="15" cy="10" r="0.5" fill="currentColor" stroke="none"/>
+              <path d="M9 14c1 1 5 1 6 0"/>
+              <path d="M4 7c-1-1-2-1-3 0"/>
+              <path d="M20 7c1-1 2-1 3 0"/>
+              <path d="M12 17v2"/>
+            </svg>
+          </button>
+          <button 
+            onClick={handleSave}
+            className="px-5 py-2 bg-white/90 backdrop-blur-md rounded-full text-[14px] font-medium text-blue-500 shadow-[0_2px_8px_rgba(0,0,0,0.05)] active:scale-95 transition-transform"
+          >
+            保存
+          </button>
+        </div>
       </div>
 
       {/* Title */}

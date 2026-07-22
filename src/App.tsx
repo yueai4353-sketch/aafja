@@ -12,7 +12,7 @@ import { buildFullAIContext, buildPhoneCallPrompt } from './utils/aiContext';
 import { getWoKongSystemPrompt, tickProp, buildEntryNarration, getActiveRecord } from './utils/woKongManager';
 import './utils/xiaohongshuShare';
 import { loadMySchedule, loadOtherSchedule, loadPersonaSnapshot, scheduleItemsToText } from './db/youandme';
-import { BackgroundLines, IconWechat, IconCalendar, IconWeather, IconHuaji, IconWorldbook, IconDevice, IconCompanion, IconSettings, IconTheme, AppIcon, CurrentTime, SortableAppIcon, IconAccounting, IconSecret, IconMessage, IconPeriod, IconCangxu, IconMemories, IconYouAndMe, ProfileCard } from './components';
+import { BackgroundLines, IconWechat, IconCalendar, IconWeather, IconHuaji, IconWorldbook, IconDevice, IconCompanion, IconSettings, IconTheme, AppIcon, CurrentTime, SortableAppIcon, IconAccounting, IconSecret, IconMessage, IconPeriod, IconCangxu, IconMemories, IconYouAndMe, IconFeatureIntro, ProfileCard } from './components';
 import { WeatherApp as WeatherScreen } from './apps/WeatherApp';
 import {
   DndContext,
@@ -88,6 +88,11 @@ import { MemoryApp as MemoryScreen } from './apps/MemoryApp';
 import { YouAndMeApp as YouAndMeScreen } from './apps/YouAndMeApp';
 import { CangxuApp as CangxuScreen } from './apps/CangxuApp';
 import { CheckPhoneApp as CheckPhoneScreen } from './apps/CheckPhoneApp';
+import { FeatureIntroApp as FeatureIntroScreen } from './apps/FeatureIntroApp';
+import { AboutModal } from './components/AboutModal';
+
+// 每次更新时修改此版本号，会触发弹窗重新显示
+const APP_VERSION = '1.0.0';
 
 const CalendarWidget = () => {
   const [view, setView] = useState<'minimal' | 'full'>('minimal');
@@ -193,6 +198,7 @@ const CalendarWidget = () => {
 
 export default function App() {
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [showAboutOnLoad, setShowAboutOnLoad] = useState(false);
 
   useEffect(() => {
     // 检测是否在 iOS Safari 中且不是 standalone 模式
@@ -204,7 +210,20 @@ export default function App() {
     }
   }, []);
 
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook' | 'theme' | 'memory' | 'youandme' | 'weather' | 'cangxu' | 'check_phone'>('home');
+  // 首次打开或版本更新时自动弹出关于弹窗
+  useEffect(() => {
+    const seenVersion = localStorage.getItem('os_about_seen_version');
+    if (seenVersion !== APP_VERSION) {
+      setShowAboutOnLoad(true);
+    }
+  }, []);
+
+  const handleCloseAboutOnLoad = () => {
+    setShowAboutOnLoad(false);
+    localStorage.setItem('os_about_seen_version', APP_VERSION);
+  };
+
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook' | 'theme' | 'memory' | 'youandme' | 'weather' | 'cangxu' | 'check_phone' | 'feature_intro'>('home');
   const [myProfile, setMyProfile] = useState<any>(() => {
     const defaultProfile = {
       name: "江明礼",
@@ -365,6 +384,7 @@ export default function App() {
       { id: '4', iconKey: 'huaji', label: '花集', screen: 'huaji' },
       { id: '5', iconKey: 'worldbook', label: '世界书', screen: 'worldbook' },
       { id: '6', iconKey: 'device', label: '查手机', screen: 'check_phone' },
+      { id: '12', iconKey: 'feature_intro', label: '功能介绍', screen: 'feature_intro' },
     ];
     if (saved) {
       try {
@@ -373,6 +393,9 @@ export default function App() {
         parsed = parsed.filter((a: any) => a.iconKey !== 'jice');
         if (!parsed.find((a: any) => a.iconKey === 'cangxu')) {
           parsed.unshift({ id: '10', iconKey: 'cangxu', label: '藏叙', screen: 'cangxu' });
+        }
+        if (!parsed.find((a: any) => a.iconKey === 'feature_intro')) {
+          parsed.push({ id: '12', iconKey: 'feature_intro', label: '功能介绍', screen: 'feature_intro' });
         }
         // 用代码中的 defaultApps 覆盖缓存里的 label/screen，保证改动立即生效
         parsed = parsed.map((a: any) => {
@@ -466,6 +489,7 @@ export default function App() {
     period: <IconPeriod />,
     cangxu: <IconCangxu />,
     memories: <IconMemories />,
+    feature_intro: <IconFeatureIntro />,
   };
 
   const handleAppClick = (screen: any) => {
@@ -1537,6 +1561,9 @@ export default function App() {
         </div>
       )}
 
+      {/* About Modal - 首次打开/版本更新时自动弹出 */}
+      <AboutModal isOpen={showAboutOnLoad} onClose={handleCloseAboutOnLoad} />
+
       {/* OS Container */}
       <div 
         className="relative w-full max-w-7xl h-full sm:h-[95vh] sm:my-auto sm:rounded-[40px] flex flex-col overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.05)] sm:border sm:border-gray-200/50"
@@ -1757,6 +1784,12 @@ export default function App() {
               key="check_phone"
               onBack={() => setCurrentScreen('home')}
               personas={personas}
+            />
+          )}
+          {currentScreen === 'feature_intro' && (
+            <FeatureIntroScreen 
+              key="feature_intro"
+              onBack={() => setCurrentScreen('home')}
             />
           )}
         </AnimatePresence>
@@ -2013,7 +2046,7 @@ export default function App() {
 
 
           {/* Bottom Dock */}
-          <div className="flex-shrink-0 flex flex-col justify-end pb-[env(safe-area-inset-bottom,2vh)] mb-3 sm:mb-6 relative z-20 px-4 sm:px-8 md:px-20 lg:px-32">
+          <div className="flex-shrink-0 flex flex-col justify-end pb-3 sm:pb-6 relative z-20 px-4 sm:px-8 md:px-20 lg:px-32" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}>
             <div className="px-2 sm:px-5 py-3 sm:py-4 flex justify-around items-center w-full bg-white/20 backdrop-blur-2xl rounded-[32px] sm:rounded-[40px] shadow-[0_8px_32px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_0_20px_rgba(255,255,255,0.1)] border border-white/30 backdrop-saturate-150">
               <AppIcon onClick={() => setCurrentScreen('settings')} icon={<IconSettings />} label="设置" />
               <AppIcon icon={<IconMessage />} label="短信" />
