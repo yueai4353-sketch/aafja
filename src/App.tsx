@@ -1956,9 +1956,9 @@ export default function App() {
           </div>
 
 
-          {/* Bottom Dock - iOS 完全贴底，内部元素添加安全区域间距 */}
-          <div className="flex-shrink-0 flex flex-col justify-end relative z-20 px-4 sm:px-8 md:px-20 lg:px-32 pt-1">
-            <div className="px-2 sm:px-5 py-3 sm:py-4 flex justify-around items-center w-full bg-white/20 backdrop-blur-2xl rounded-[32px] sm:rounded-[40px] shadow-[0_8px_32px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_0_20px_rgba(255,255,255,0.1)] border border-white/30 backdrop-saturate-150" style={{ marginBottom: 'max(0.25rem, env(safe-area-inset-bottom, 0.25rem))' }}>
+          {/* Bottom Dock - iOS 完全贴底无间隙，Dock内部padding适配安全区 */}
+          <div className="flex-shrink-0 flex flex-col justify-end relative z-20 px-4 sm:px-8 md:px-20 lg:px-32">
+            <div className="px-2 sm:px-5 flex justify-around items-center w-full bg-white/20 backdrop-blur-2xl rounded-[32px] sm:rounded-[40px] shadow-[0_8px_32px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_0_20px_rgba(255,255,255,0.1)] border border-white/30 backdrop-saturate-150" style={{ paddingTop: '0.75rem', paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}>
               <AppIcon onClick={() => setCurrentScreen('settings')} icon={<IconSettings />} label="设置" />
               <AppIcon icon={<IconMessage />} label="短信" />
               <AppIcon icon={<IconCompanion />} label="陪伴" />
