@@ -1762,13 +1762,13 @@ export default function App() {
               }}
             >
               <div 
-                className="flex transition-transform duration-300 ease-in-out h-full"
+                className="flex transition-transform duration-300 ease-in-out"
                 style={{ transform: `translateX(-${currentPage * 100}%)` }}
               >
                 {/* Page 1 with Card */}
                 <div className="w-full flex-shrink-0 flex flex-col">
                   {/* Main Home Card */}
-                  <div className="mx-4 sm:mx-12 md:mx-20 lg:mx-32 mb-6 relative rounded-[32px] sm:rounded-[48px] overflow-hidden flex flex-col shrink min-h-[30vh] basis-[40%] max-h-[380px] sm:max-h-[450px] lg:max-h-[550px] shadow-sm">
+                  <div className="mx-4 sm:mx-12 md:mx-20 lg:mx-32 mb-4 relative rounded-[32px] sm:rounded-[48px] overflow-hidden flex flex-col shrink-0 h-[32vh] sm:h-[38vh] max-h-[320px] sm:max-h-[400px] lg:max-h-[500px] shadow-sm">
               
               {/* Full Background Image */}
               <div 
@@ -1886,8 +1886,6 @@ export default function App() {
                         ) : null}
                       </DragOverlay>
 
-                      {/* Decorative Section removed */}
-                      <div className="col-span-2 pointer-events-none"></div>
                     </div>
                   </DndContext>
                   </div>
