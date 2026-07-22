@@ -1714,7 +1714,7 @@ export default function App() {
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             {/* App Grid Layer */}
           <div 
-              className="flex-1 min-h-0 flex flex-col justify-center relative overflow-hidden"
+              className="flex-1 min-h-0 flex flex-col justify-end relative overflow-hidden"
               onTouchStart={(e) => {
                 const touch = e.touches[0];
                 const startX = touch.clientX;
