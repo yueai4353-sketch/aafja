@@ -1837,7 +1837,7 @@ export default function App() {
             </div>
 
                   {/* App Grid for Page 1 */}
-                  <div className="flex-1 px-4 sm:px-12 md:px-20 lg:px-32 flex flex-col justify-start pt-2 sm:pt-4">
+                  <div className="flex-1 px-4 sm:px-12 md:px-20 lg:px-32 flex flex-col justify-end pb-2 sm:pb-4">
                   <DndContext 
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -1956,8 +1956,8 @@ export default function App() {
           </div>
 
 
-          {/* Bottom Dock - iOS 完全贴底，外层 pb 用背景覆盖安全区 */}
-          <div className="flex-shrink-0 flex flex-col justify-end relative z-20 px-4 sm:px-8 md:px-20 lg:px-32 pt-1 pb-1">
+          {/* Bottom Dock - 完全贴底无间隙 */}
+          <div className="flex-shrink-0 flex flex-col justify-end relative z-20 px-4 sm:px-8 md:px-20 lg:px-32 pt-1 pb-2">
             <div className="px-2 sm:px-5 py-3 sm:py-4 flex justify-around items-center w-full bg-white/20 backdrop-blur-2xl rounded-[32px] sm:rounded-[40px] shadow-[0_8px_32px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_0_20px_rgba(255,255,255,0.1)] border border-white/30 backdrop-saturate-150">
               <AppIcon onClick={() => setCurrentScreen('settings')} icon={<IconSettings />} label="设置" />
               <AppIcon icon={<IconMessage />} label="短信" />

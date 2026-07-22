@@ -29,8 +29,8 @@
     touch-action: pan-x pan-y;
     box-sizing: border-box;
     -webkit-text-size-adjust: 100%;
-    /* 统一背景色：使用渐变终点色，确保iOS底部安全区不露白 */
-    background: #ffe4e1;
+    /* 统一背景色：覆盖所有可能露出的区域 */
+    background: #fff0f5;
   }
 
   body {
