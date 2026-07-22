@@ -1710,10 +1710,10 @@ export default function App() {
         <div className="flex-1 w-full relative z-10 flex flex-col overflow-hidden">
 
           {/* Main Desktop Layout */}
-          <div className="flex-1 flex flex-col mt-4 min-h-0 pb-2 overflow-hidden">
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             {/* App Grid Layer */}
           <div 
-              className="flex-1 min-h-0 flex flex-col justify-center mb-0 relative overflow-hidden"
+              className="flex-1 min-h-0 flex flex-col justify-center relative overflow-hidden"
               onTouchStart={(e) => {
                 const touch = e.touches[0];
                 const startX = touch.clientX;
@@ -1767,7 +1767,7 @@ export default function App() {
                 {/* Page 1 with Card */}
                 <div className="w-full flex-shrink-0 flex flex-col">
                   {/* Main Home Card */}
-                  <div className="mx-4 sm:mx-12 md:mx-20 lg:mx-32 mb-4 relative rounded-[32px] sm:rounded-[48px] overflow-hidden flex flex-col shrink min-h-[30vh] basis-[45%] max-h-[400px] sm:max-h-[500px] lg:max-h-[600px] shadow-sm">
+                  <div className="mx-4 sm:mx-12 md:mx-20 lg:mx-32 mb-6 relative rounded-[32px] sm:rounded-[48px] overflow-hidden flex flex-col shrink min-h-[30vh] basis-[40%] max-h-[380px] sm:max-h-[450px] lg:max-h-[550px] shadow-sm">
               
               {/* Full Background Image */}
               <div 
@@ -1836,7 +1836,7 @@ export default function App() {
             </div>
 
                   {/* App Grid for Page 1 */}
-                  <div className="flex-1 px-4 sm:px-12 md:px-20 lg:px-32 flex flex-col justify-start pt-4 sm:pt-8">
+                  <div className="flex-1 px-4 sm:px-12 md:px-20 lg:px-32 flex flex-col justify-start pt-2 sm:pt-4">
                   <DndContext 
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -1894,7 +1894,7 @@ export default function App() {
 
                 {/* Page 2 */}
                 <div className="w-full flex-shrink-0 flex flex-col">
-                  <div className="flex-1 px-4 sm:px-12 md:mx-20 lg:mx-32 flex flex-col justify-start pt-4 sm:pt-8">
+                  <div className="flex-1 px-4 sm:px-12 md:mx-20 lg:mx-32 flex flex-col justify-start pt-2 sm:pt-4">
                   <DndContext 
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -1958,7 +1958,7 @@ export default function App() {
 
 
           {/* Bottom Dock */}
-          <div className="flex-shrink-0 flex flex-col justify-end pb-3 sm:pb-6 relative z-20 px-4 sm:px-8 md:px-20 lg:px-32" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}>
+          <div className="flex-shrink-0 flex flex-col justify-end pb-4 sm:pb-8 relative z-20 px-4 sm:px-8 md:px-20 lg:px-32" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))' }}>
             <div className="px-2 sm:px-5 py-3 sm:py-4 flex justify-around items-center w-full bg-white/20 backdrop-blur-2xl rounded-[32px] sm:rounded-[40px] shadow-[0_8px_32px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_0_20px_rgba(255,255,255,0.1)] border border-white/30 backdrop-saturate-150">
               <AppIcon onClick={() => setCurrentScreen('settings')} icon={<IconSettings />} label="设置" />
               <AppIcon icon={<IconMessage />} label="短信" />
