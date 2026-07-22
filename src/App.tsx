@@ -1714,7 +1714,7 @@ export default function App() {
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             {/* App Grid Layer */}
           <div 
-              className="flex-1 min-h-0 flex flex-col justify-end relative overflow-hidden"
+              className="flex-1 min-h-0 flex flex-col relative overflow-hidden"
               onTouchStart={(e) => {
                 const touch = e.touches[0];
                 const startX = touch.clientX;
@@ -1762,11 +1762,11 @@ export default function App() {
               }}
             >
               <div 
-                className="flex transition-transform duration-300 ease-in-out"
+                className="flex h-full transition-transform duration-300 ease-in-out"
                 style={{ transform: `translateX(-${currentPage * 100}%)` }}
               >
                 {/* Page 1 with Card */}
-                <div className="w-full flex-shrink-0 flex flex-col">
+                <div className="w-full h-full flex-shrink-0 flex flex-col">
                   {/* Main Home Card */}
                   <div className="mx-4 sm:mx-12 md:mx-20 lg:mx-32 mb-4 relative rounded-[32px] sm:rounded-[48px] overflow-hidden flex flex-col shrink-0 h-[32vh] sm:h-[38vh] max-h-[320px] sm:max-h-[400px] lg:max-h-[500px] shadow-sm">
               
@@ -1837,7 +1837,7 @@ export default function App() {
             </div>
 
                   {/* App Grid for Page 1 */}
-                  <div className="flex-1 px-4 sm:px-12 md:px-20 lg:px-32 flex flex-col justify-end pb-2 sm:pb-4">
+                  <div className="flex-1 px-4 sm:px-12 md:px-20 lg:px-32 flex flex-col justify-center py-2 sm:py-4">
                   <DndContext 
                     sensors={sensors}
                     collisionDetection={closestCenter}
