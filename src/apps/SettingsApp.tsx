@@ -441,18 +441,6 @@ export const SettingsApp = ({ onBack, desktopBg, key }: { onBack: () => void, de
         </div>
       )}
 
-      {/* Settings Status Bar */}
-      <div className="flex justify-between items-center px-7 text-[13px] font-medium text-gray-800 shrink-0 relative z-10">
-        <div className="flex items-center">
-          <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
-        </div>
-        <div className="flex items-center gap-1.5 opacity-60">
-          <Signal size={14} strokeWidth={2.5} />
-          <Wifi size={14} strokeWidth={2.5} />
-          <Battery size={16} strokeWidth={2} />
-        </div>
-      </div>
-
       {/* Settings Header */}
       <div className="flex items-center justify-between px-4 py-4 shrink-0 mt-2 relative z-10">
         <div className="flex items-center">

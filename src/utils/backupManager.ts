@@ -135,7 +135,7 @@ export async function importAppData(file: File): Promise<void> {
   try {
     if (Array.isArray(appSettings) && appSettings.length > 0) {
       await DexieChatDB.appSettings.clear();
-      await DexieChatDB.appSettings.bulkAdd(appSettings);
+      await DexieChatDB.appSettings.bulkPut(appSettings);
     }
   } catch (e: any) {
     console.warn('应用设置导入失败', e);

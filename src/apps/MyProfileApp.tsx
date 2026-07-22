@@ -68,18 +68,6 @@ export const MyProfileApp = ({
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       className="absolute inset-0 bg-[#FAFAFA] z-[100] flex flex-col pt-4"
     >
-      {/* Status Bar */}
-      <div className="flex justify-between items-center px-7 text-[13px] font-medium text-gray-800 shrink-0 bg-white pb-2">
-        <div className="flex items-center">
-          <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
-        </div>
-        <div className="flex items-center gap-1.5 opacity-60">
-          <Signal size={14} strokeWidth={2.5} />
-          <Wifi size={14} strokeWidth={2.5} />
-          <Battery size={16} strokeWidth={2} />
-        </div>
-      </div>
-
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 shrink-0 bg-white">
         <button onClick={onBack} className="p-2 -ml-2 text-gray-800 active:bg-gray-100 rounded-full transition-colors z-10">

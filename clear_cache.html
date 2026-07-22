@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>清理缓存</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .success {
+            color: #28a745;
+            font-size: 24px;
+            margin: 20px 0;
+        }
+        .info {
+            color: #666;
+            margin-top: 20px;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>清理浏览器缓存</h1>
+        <div id="result"></div>
+        <button onclick="window.close()">关闭窗口</button>
+        <div class="info">请刷新您的应用页面以查看更新</div>
+    </div>
+
+    <script>
+        // 清理所有缓存
+        try {
+            // 清理 localStorage
+            localStorage.clear();
+            
+            // 清理 sessionStorage
+            sessionStorage.clear();
+            
+            // 清理所有 cookies
+            document.cookie.split(";").forEach(function(c) { 
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+            });
+            
+            // 清理 IndexedDB
+            if (window.indexedDB && window.indexedDB.databases) {
+                window.indexedDB.databases().then(dbs => {
+                    dbs.forEach(db => {
+                        window.indexedDB.deleteDatabase(db.name);
+                    });
+                });
+            }
+            
+            // 清理 Cache Storage
+            if ('caches' in window) {
+                caches.keys().then(names => {
+                    names.forEach(name => {
+                        caches.delete(name);
+                    });
+                });
+            }
+            
+            document.getElementById('result').innerHTML = '<div class="success">✓ 缓存已成功清理！</div><div class="info">已清理：localStorage、sessionStorage、cookies、IndexedDB、Cache Storage</div>';
+            
+            // 3秒后自动刷新主应用
+            setTimeout(() => {
+                if (window.opener) {
+                    window.opener.location.reload();
+                    window.close();
+                }
+            }, 2000);
+            
+        } catch (e) {
+            document.getElementById('result').innerHTML = '<div style="color: red;">清理时出错: ' + e.message + '</div>';
+        }
+    </script>
+</body>
+</html>

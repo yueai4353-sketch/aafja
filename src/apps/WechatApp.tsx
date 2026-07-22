@@ -4,13 +4,15 @@ import { Moon, Signal, Wifi, Battery, ChevronLeft, ChevronRight, User, MoreHoriz
 import StickerPanel from '../components/StickerPanel';
 import WoYuModal from '../components/WoYuModal';
 import { getActiveRecord, revokeActiveProp, WoKongActiveRecord } from '../utils/woKongManager';
-import { CurrentTime, ToggleSwitch, useCurrentTime } from '../components';
+import { WithYouModal } from '../components/WithYouModal';
+import { ToggleSwitch, useCurrentTime } from '../components';
 import { AppDB } from '../db';
 import { fileToBase64, analyzeImage, compressImage } from '../utils/vision';
 import { shouldShowTimestamp, formatChatTimestamp } from '../utils/timeUtils';
 import { buildWorldbookText, buildPersonaText, buildMyProfileText } from '../utils/schedulePrompt';
-import { loadOtherSchedule, loadPlotMemories, loadAboutYouEntries } from '../db/youandme';
+import { loadOtherSchedule, loadPlotMemories, loadAboutYouEntries, loadMoonPhase, saveMoonPhase } from '../db/youandme';
 import { summarizeChatBatch } from '../utils/memorySummarize';
+import { ChatXiaohongshuShare } from '../utils/xiaohongshuShare';
 
 const ChatSettingsScreen = ({ onBack, friend, onSetRemark, onSetWallpaper, onClearChat, onShowCotDisplayChange, myProfile }: { onBack: () => void, friend: any, onSetRemark?: (remark: string) => void, onSetWallpaper?: (wp: string) => void, onClearChat?: () => void, onShowCotDisplayChange?: (val: boolean) => void, key?: React.Key, myProfile?: any }) => {
   const [showRemarkModal, setShowRemarkModal] = useState(false);
@@ -588,7 +590,7 @@ const updateSetting = async (key: string, value: any) => {
               </button>
               <AnimatePresence>
                 {showCotDropdown && (
-                  <>
+                  <React.Fragment key="cot-dropdown">
                     <div className="fixed inset-0 z-10" onClick={() => setShowCotDropdown(false)} />
                     <motion.div
                       initial={{ opacity: 0, y: -6, scale: 0.98 }}
@@ -612,7 +614,7 @@ const updateSetting = async (key: string, value: any) => {
                       </button>
                       {/* 我的预设 */}
                       {cotPresets.length > 0 && (
-                        <>
+                        <React.Fragment key="cot-presets">
                           <div className="px-4 pt-2.5 pb-1 text-[12px] text-[#999999] font-medium">我的预设</div>
                           {cotPresets.map((preset) => (
                             <button
@@ -630,10 +632,10 @@ const updateSetting = async (key: string, value: any) => {
                               <span className="flex-1 text-left">{preset.name}</span>
                             </button>
                           ))}
-                        </>
+                        </React.Fragment>
                       )}
                     </motion.div>
-                  </>
+                  </React.Fragment>
                 )}
               </AnimatePresence>
             </div>
@@ -645,23 +647,7 @@ const updateSetting = async (key: string, value: any) => {
               placeholder={`[THINK]For every user input, you MUST generate and output <thinking>...</thinking> BEFORE the reply, explicitly analyzing the following exact steps. You are absolutely forbidden from skipping any step, merging steps, or using abbreviations, then </thinking> and the reply.\n\n<thinking>\n提示：****你此刻正在拿着手机与用户进行你来我往的线上交流，而非客服回复。你拥有自己的主观想法、分享欲、私人时间与多元化的生活。你有权展现疲惫，有权拒绝，有权生气，你是一个与User享有绝对平等权利的活生生的人。****\n\n[STEP 0: INITIALIZATION & COGNITIVE ANCHORING (情景与人设深度回溯)]\n...\n</thinking>`}
               className="w-full h-[100px] border border-gray-200 rounded-[8px] p-3 text-[15px] text-[#333333] placeholder-gray-400 bg-[#fafafa] focus:outline-none focus:border-[#07C160] focus:bg-white transition-colors resize-none"
             />
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => { setCotDraft(DEFAULT_COT_STYLE); setSelectedCotPresetId(null); handleSetCoTStyle(DEFAULT_COT_STYLE); }}
-                className="px-3 py-1.5 border border-gray-200 text-[#666666] text-[13px] rounded-[6px] active:bg-gray-50 transition-colors shrink-0"
-              >
-                恢复默认
-              </button>
-              <button
-                onClick={() => {
-                  if (!cotDraft.trim()) return;
-                  setCotNewName('');
-                  setShowCotNameModal(true);
-                }}
-                className="px-3 py-1.5 border border-gray-200 text-[#666666] text-[13px] rounded-[6px] active:bg-gray-50 transition-colors shrink-0"
-              >
-                另存为新
-              </button>
+            <div className="flex items-center gap-2 justify-end">
               <button
                 onClick={() => { handleSetCoTStyle(cotDraft); }}
                 className="ml-auto px-4 py-1.5 bg-[#333333] text-white text-[13px] rounded-[6px] active:bg-black transition-colors shrink-0"
@@ -1083,7 +1069,7 @@ const updateSetting = async (key: string, value: any) => {
     
     <AnimatePresence>
       {showDeleteConfirm && (
-        <>
+        <React.Fragment key="delete-confirm">
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1120,11 +1106,11 @@ const updateSetting = async (key: string, value: any) => {
               </button>
             </div>
           </motion.div>
-        </>
+        </React.Fragment>
       )}
 
       {showCotNameModal && (
-        <>
+        <React.Fragment key="cot-name">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1172,11 +1158,11 @@ const updateSetting = async (key: string, value: any) => {
               </button>
             </div>
           </motion.div>
-        </>
+        </React.Fragment>
       )}
 
       {showRemarkModal && (
-        <>
+        <React.Fragment key="remark">
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1220,11 +1206,11 @@ const updateSetting = async (key: string, value: any) => {
               </button>
             </div>
           </motion.div>
-        </>
+        </React.Fragment>
       )}
 
       {showWallpaperModal && (
-        <>
+        <React.Fragment key="wallpaper">
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1264,7 +1250,7 @@ const updateSetting = async (key: string, value: any) => {
 
             <div className="min-h-[80px]">
               {wallpaperType === 'url' ? (
-                <>
+                <React.Fragment key="url">
                   <input 
                     type="text" 
                     value={wallpaperUrl}
@@ -1273,7 +1259,7 @@ const updateSetting = async (key: string, value: any) => {
                     className="w-full h-11 px-3 border border-gray-200 rounded-[8px] text-[15px] focus:outline-none focus:border-gray-400 transition-colors mb-2"
                   />
                   <div className="text-[12px] text-gray-400">支持 jpg, png, gif, webp 格式</div>
-                </>
+                </React.Fragment>
               ) : (
                 <div className="flex flex-col items-center justify-center pt-2">
                   <input 
@@ -1321,7 +1307,7 @@ const updateSetting = async (key: string, value: any) => {
               </button>
             </div>
           </motion.div>
-        </>
+        </React.Fragment>
       )}
     </AnimatePresence>
     </>
@@ -1659,12 +1645,31 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
   const [inputFocused, setInputFocused] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [actionMenuMsg, setActionMenuMsg] = useState<any | null>(null);
+  const [insertModalMsg, setInsertModalMsg] = useState<any | null>(null);
+  const [insertMsgType, setInsertMsgType] = useState<'text' | 'narrator' | 'image' | 'voice'>('text');
+  const [insertText, setInsertText] = useState('');
   const [editingMsg, setEditingMsg] = useState<any | null>(null);
   const [editingText, setEditingText] = useState('');
   const [recalledContentToShow, setRecalledContentToShow] = useState<string | null>(null);
   const [isMultiSelecting, setIsMultiSelecting] = useState(false);
   const [selectedMsgIds, setSelectedMsgIds] = useState<number[]>([]);
   const [showPluginPanel, setShowPluginPanel] = useState(false);
+  const [showWithYouModal, setShowWithYouModal] = useState(false);
+  const [scheduleMoonPhase, setScheduleMoonPhase] = useState<'full' | 'crescent'>(() => {
+    if (friend?.id) {
+      const saved = localStorage.getItem(`moonPhase_${friend.id}`);
+      return (saved === 'crescent' ? 'crescent' : 'full');
+    }
+    return 'full';
+  });
+  
+  // 当月相状态改变时，保存到 localStorage
+  useEffect(() => {
+    if (friend?.id && scheduleMoonPhase) {
+      localStorage.setItem(`moonPhase_${friend.id}`, scheduleMoonPhase);
+    }
+  }, [scheduleMoonPhase, friend?.id]);
+  
   // 我谕道具系统
   const [showWoYuModal, setShowWoYuModal] = useState(false);
   const [woYuActiveRecord, setWoYuActiveRecord] = useState<WoKongActiveRecord | null>(() =>
@@ -1883,7 +1888,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
         )}
         <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center">
           <span className="text-[17px] font-medium text-gray-800">
-            {isMultiSelecting ? '选择消息' : displayFriendName}
+            {isMultiSelecting ? `选择消息(${selectedMsgIds.length})` : displayFriendName}
           </span>
           {!isMultiSelecting && isTyping && (
             <span className="text-[10px] text-gray-500 font-normal">对方正在输入...</span>
@@ -2031,7 +2036,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
       <div ref={chatAreaRef} className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-4 no-scrollbar">
         {messages.length === 0 && (
           <div className="text-center mt-2">
-             <span className="text-[12px] text-gray-400"><CurrentTime /></span>
+             <span className="text-[12px] text-gray-400">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
         )}
         {(() => {
@@ -2127,7 +2132,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
               const callTimestampValue = msg.fullTimestamp ?? msg.timestamp ?? 0;
               const isCallTimestampHidden = hiddenTimestamps.has(callTimestampValue);
               return (
-                <React.Fragment key={idx}>
+                <React.Fragment key={`msg-${msg.id || idx}`}>
                   {showTimeForCall && !isCallTimestampHidden && (
                     <div
                       className="chat-timestamp"
@@ -2171,8 +2176,159 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
             if (msg.msgType === 'system') return null;
 
             let extractedMindCard = msg.mindCard || null;
-            let cleanText = msg.text || '';
+            let cleanText = (msg.text || '').replace(/\[PHONE:(GIVE|RETURN|REQUEST|RECEIVED)\]/g, '').trim();
+            if (!cleanText && !msg.mindCard) return null;
             let quoteInfo = null;
+            
+            // 检测 MissAV 分享卡片
+            const missavCardMatch = cleanText.match(/^\[MISSAV_CARD\]([\s\S]*?)\[\/MISSAV_CARD\]$/);
+            if (missavCardMatch) {
+              let cardData: any = {};
+              try { cardData = JSON.parse(missavCardMatch[1]); } catch {}
+              
+              const prevVisibleMsgMav = (() => {
+                for (let i = idx - 1; i >= 0; i--) {
+                  if (messages[i].msgType !== 'system') return messages[i];
+                }
+                return null;
+              })();
+              const showTimeMav = shouldShowTimestamp(
+                msg.fullTimestamp ?? msg.timestamp ?? 0,
+                prevVisibleMsgMav ? (prevVisibleMsgMav.fullTimestamp ?? prevVisibleMsgMav.timestamp ?? null) : null
+              );
+              const timestampValueMav = msg.fullTimestamp ?? msg.timestamp ?? 0;
+              const isTimestampHiddenMav = hiddenTimestamps.has(timestampValueMav);
+              
+              return (
+                <React.Fragment key={`msg-missav-${msg.id || idx}`}>
+                  {showTimeMav && !isTimestampHiddenMav && (
+                    <div
+                      className="chat-timestamp"
+                      onPointerDown={() => startTimestampLongPress(msg)}
+                      onPointerUp={cancelTimestampLongPress}
+                      onPointerLeave={cancelTimestampLongPress}
+                      onPointerCancel={cancelTimestampLongPress}
+                      onContextMenu={(e) => { e.preventDefault(); cancelTimestampLongPress(); }}
+                    >
+                      {formatChatTimestamp(msg.fullTimestamp ?? msg.timestamp ?? 0)}
+                    </div>
+                  )}
+                  <div className={`flex items-start gap-3 w-full my-1 ${msg.isMe ? 'flex-row-reverse' : ''} ${isMultiSelecting ? 'pl-8' : ''}`}>
+                    <div className="w-10 h-10 bg-gray-200 rounded-[6px] flex items-center justify-center overflow-hidden shrink-0 mt-0.5">
+                      {msg.isMe ? (
+                        (friend.my_bound_avatar || myAvatar) ? <img src={(friend.my_bound_avatar || myAvatar) as string} alt="" className="w-full h-full object-cover" /> : <User size={20} className="text-gray-400" />
+                      ) : (
+                        friend.avatar ? <img src={friend.avatar} alt="" className="w-full h-full object-cover" /> : <User size={20} className="text-gray-400" />
+                      )}
+                    </div>
+                    <div
+                      className="max-w-[70%] rounded-lg overflow-hidden shadow-sm border border-gray-200"
+                      style={{ background: '#1a1a1a' }}
+                      onPointerDown={() => { if (!isMultiSelecting) startLongPress(msg); }}
+                      onPointerUp={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                      onPointerLeave={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                      onPointerCancel={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                      onContextMenu={(e: any) => { e.preventDefault(); if (!isMultiSelecting) cancelLongPress(); }}
+                    >
+                      {/* MissAV 分享卡片 */}
+                      <div className="flex items-center gap-2 px-3 py-2 border-b border-[#333]">
+                        <div className="w-5 h-5 rounded bg-black flex items-center justify-center">
+                          <span className="text-[#FF9900] text-[8px] font-bold">MAV</span>
+                        </div>
+                        <span className="text-[#aaa] text-[11px]">MissAV</span>
+                      </div>
+                      <div className="px-3 py-2">
+                        <div className="flex gap-2">
+                          <div className="w-16 h-12 bg-[#333] rounded flex items-center justify-center shrink-0">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="#FF9900" opacity={0.8}>
+                              <path d="M8 5v14l11-7z"/>
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[#eee] text-[12px] leading-[1.4] line-clamp-2">{cardData.title || cardData.id || '视频'}</p>
+                            {cardData.duration && (
+                              <p className="text-[#666] text-[10px] mt-1 font-mono">{cardData.duration}</p>
+                            )}
+                          </div>
+                        </div>
+                        {cardData.tags && cardData.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {cardData.tags.slice(0, 4).map((tag: string, ti: number) => (
+                              <span key={ti} className="text-[#888] text-[10px] bg-[#2a2a2a] px-1.5 py-0.5 rounded">{tag}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </React.Fragment>
+              );
+            }
+
+            // 检测小红书链接
+            const xiaohongshuUrl = ChatXiaohongshuShare.extractXiaohongshuUrl(cleanText);
+            
+            // 如果检测到小红书链接，渲染为卡片
+            if (xiaohongshuUrl) {
+              const xiaohongshuShare = ChatXiaohongshuShare.buildInitialShare(xiaohongshuUrl, cleanText);
+              
+              // 智能时间戳：跳过 system 消息后找上一条有效消息的时间戳
+              const prevVisibleMsg = (() => {
+                for (let i = idx - 1; i >= 0; i--) {
+                  if (messages[i].msgType !== 'system') return messages[i];
+                }
+                return null;
+              })();
+              const showTime = shouldShowTimestamp(
+                msg.fullTimestamp ?? msg.timestamp ?? 0,
+                prevVisibleMsg ? (prevVisibleMsg.fullTimestamp ?? prevVisibleMsg.timestamp ?? null) : null
+              );
+              const timestampValue = msg.fullTimestamp ?? msg.timestamp ?? 0;
+              const isTimestampHidden = hiddenTimestamps.has(timestampValue);
+              
+              return (
+                <React.Fragment key={`msg-xiaohongshu-${msg.id || idx}`}>
+                  {showTime && !isTimestampHidden && (
+                    <div
+                      className="chat-timestamp"
+                      onPointerDown={() => startTimestampLongPress(msg)}
+                      onPointerUp={cancelTimestampLongPress}
+                      onPointerLeave={cancelTimestampLongPress}
+                      onPointerCancel={cancelTimestampLongPress}
+                      onContextMenu={(e) => { e.preventDefault(); cancelTimestampLongPress(); }}
+                    >
+                      {formatChatTimestamp(msg.fullTimestamp ?? msg.timestamp ?? 0)}
+                    </div>
+                  )}
+                  <div className={`flex items-start gap-3 w-full my-1 ${msg.isMe ? 'flex-row-reverse' : ''} ${isMultiSelecting ? 'pl-8' : ''}`}>
+                    <div className="w-10 h-10 bg-gray-200 rounded-[6px] flex items-center justify-center overflow-hidden shrink-0 mt-0.5">
+                      {msg.isMe ? (
+                        (friend.my_bound_avatar || myAvatar) ? <img src={(friend.my_bound_avatar || myAvatar) as string} alt="" className="w-full h-full object-cover" /> : <User size={20} className="text-gray-400" />
+                      ) : (
+                        friend.avatar ? <img src={friend.avatar} alt="" className="w-full h-full object-cover" /> : <User size={20} className="text-gray-400" />
+                      )}
+                    </div>
+                    <div 
+                      className="xiaohongshu-share-container"
+                      ref={(el) => {
+                        if (el && !el.dataset.rendered) {
+                          el.dataset.rendered = 'true';
+                          el.dataset.timestamp = String(msg.fullTimestamp ?? msg.timestamp ?? 0);
+                          ChatXiaohongshuShare.renderMessageElement(el, xiaohongshuShare);
+                        }
+                      }}
+                      onPointerDown={() => { if (!isMultiSelecting) startLongPress(msg); }}
+                      onPointerUp={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                      onPointerLeave={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                      onPointerCancel={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                      onContextMenu={(e: any) => { e.preventDefault(); if (!isMultiSelecting) cancelLongPress(); }}
+                    >
+                      <div className="chat-message-content"></div>
+                    </div>
+                  </div>
+                </React.Fragment>
+              );
+            }
 
             const quoteMatch = cleanText.match(/^「(.*?)」\n- - - - - - - - - - - - - - -\n([\s\S]*)$/);
             const aiQuoteMatch = cleanText.match(/^\[引用:(.*?)\]\n([\s\S]*)$/);
@@ -2296,7 +2452,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
             const isTimestampHidden = hiddenTimestamps.has(timestampValue);
 
             return (
-              <React.Fragment key={idx}>
+              <React.Fragment key={`msg-normal-${msg.id || idx}`}>
               {showTime && !isTimestampHidden && (
                 <div
                   className="chat-timestamp"
@@ -2336,11 +2492,11 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                         const showDot = showMindCardSetting && !msg.isMe && extractedMindCard;
                         const narratorText = group.parts[0].text as string;
                         const isWuYuCard = /^\[.*(出现了|被收回了|的效果消退了)/.test(narratorText);
-                        if (isWuYuCard) {
-                          return (
-                            <div
-                              key={gIdx}
-                              className={`chat-message narrator-message wuyu-card-narrator w-full flex justify-center my-4 select-none ${isMultiSelecting ? 'pl-10' : ''}`}
+                         if (isWuYuCard) {
+                           return (
+                             <div
+                               key={`msg-${msg.id || idx}-group-${gIdx}`}
+                               className={`chat-message narrator-message wuyu-card-narrator w-full flex justify-center my-4 select-none ${isMultiSelecting ? 'pl-10' : ''}`}
                               onPointerDown={() => { if (!isMultiSelecting) startLongPress(msg); }}
                               onPointerUp={() => { if (!isMultiSelecting) cancelLongPress(); }}
                               onPointerLeave={() => { if (!isMultiSelecting) cancelLongPress(); }}
@@ -2555,7 +2711,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                                   const showDot = showMindCardSetting && !msg.isMe && extractedMindCard && pIdx === group.parts.length - 1;
                                   const showCotBubble = !msg.isMe && isCotMsg && showCotDisplaySetting && isLastGroup && pIdx === group.parts.length - 1;
                                   return (
-                                     <>
+                                     <React.Fragment key={`${gIdx}-${pIdx}`}>
                                      {showCotBubble && (
                                        <button
                                         onClick={() => setViewingCotContent(lastAiCotContent)}
@@ -2567,7 +2723,6 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                                        </button>
                                      )}
                                      <div 
-                                       key={pIdx}
                                        className={`relative px-4 py-2.5 w-fit rounded-[10px] text-[15px] ${msg.isMe ? 'bg-[#95EC69] text-black' : 'bg-white text-gray-800'} break-words select-none ${isMultiSelecting ? '' : 'cursor-pointer active:brightness-95'}`}
                                        style={{
                                           fontSize: bubbleFontSize ? `${bubbleFontSize}px` : undefined,
@@ -2591,11 +2746,11 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                                         <img src={msg.text} alt="图片消息" className="inner-bubble-image" />
                                       ) : (
                                         <span className="whitespace-pre-wrap">{p.text}</span>
-                                      )}
-                                    </div>
-                                     </>
-                                  );
-                               })}
+                                       )}
+                                     </div>
+                                      </React.Fragment>
+                                   );
+                                })}
                                {quoteInfo && gIdx === groups.length - 1 && (
                                  <div 
                                    className="text-[12px] bg-black/5 text-[#888888] mt-1 px-2.5 py-1.5 rounded-[6px] text-left break-words w-fit max-w-full line-clamp-2 cursor-pointer"
@@ -2625,31 +2780,57 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
 
       {/* Input Area / Multi-Select Bottom Bar */}
       {isMultiSelecting ? (
-        <div className="bg-[#f7f7f7] border-t border-gray-200 px-3 py-3 shrink-0 pb-8 flex items-center justify-between min-h-[60px] relative">
-          <button className="flex-1 flex flex-col items-center justify-center gap-1 active:bg-gray-200/50 py-2 rounded-lg text-gray-400">
-             <MessageSquare size={22} className="text-gray-400" />
-          </button>
-          <button className="flex-1 flex flex-col items-center justify-center gap-1 active:bg-gray-200/50 py-2 rounded-lg text-gray-400">
-             <Copy size={22} className="text-gray-400" />
-          </button>
-          <button 
-             onClick={() => {
-               if (selectedMsgIds.length > 0 && onDeleteMessages) {
-                 onDeleteMessages(selectedMsgIds);
-                 setIsMultiSelecting(false);
-                 setSelectedMsgIds([]);
-               }
-             }}
-             disabled={selectedMsgIds.length === 0}
-             className={`flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-lg ${selectedMsgIds.length > 0 ? 'text-[#333333] active:bg-gray-200/50 cursor-pointer' : 'text-gray-300 opacity-50'}`}
-          >
-             <Trash2 size={22} className="text-inherit" />
-             <span className="text-[12px] font-medium text-inherit">删除</span>
-          </button>
-          <button className="flex-1 flex flex-col items-center justify-center gap-1 active:bg-gray-200/50 py-2 rounded-lg text-gray-400">
-             <MapPin size={22} className="text-gray-400" />
-          </button>
-        </div>
+         <div className="bg-[#f7f7f7] border-t border-gray-200 px-3 py-3 shrink-0 pb-8 flex flex-col gap-2 min-h-[60px] relative">
+           <div className="flex items-center justify-between">
+             <button className="flex-1 flex flex-col items-center justify-center gap-1 active:bg-gray-200/50 py-2 rounded-lg text-gray-400">
+                <MessageSquare size={22} className="text-gray-400" />
+             </button>
+             <button className="flex-1 flex flex-col items-center justify-center gap-1 active:bg-gray-200/50 py-2 rounded-lg text-gray-400">
+                <Copy size={22} className="text-gray-400" />
+             </button>
+             <button 
+                onClick={() => {
+                  if (selectedMsgIds.length > 0 && onDeleteMessages) {
+                    onDeleteMessages(selectedMsgIds);
+                    setIsMultiSelecting(false);
+                    setSelectedMsgIds([]);
+                  }
+                }}
+                disabled={selectedMsgIds.length === 0}
+                className={`flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-lg ${selectedMsgIds.length > 0 ? 'text-[#333333] active:bg-gray-200/50 cursor-pointer' : 'text-gray-300 opacity-50'}`}
+             >
+                <Trash2 size={22} className="text-inherit" />
+                <span className="text-[12px] font-medium text-inherit">删除</span>
+             </button>
+             <button className="flex-1 flex flex-col items-center justify-center gap-1 active:bg-gray-200/50 py-2 rounded-lg text-gray-400">
+                <MapPin size={22} className="text-gray-400" />
+             </button>
+           </div>
+           <div className="flex items-center justify-center gap-3 px-2">
+             <button
+               onClick={() => {
+                 const currentCount = selectedMsgIds.length;
+                 const nextCount = currentCount + 10;
+                 const msgIds = messages.slice(0, nextCount).map((m: any) => m.id);
+                 setSelectedMsgIds(msgIds);
+               }}
+               className="flex-1 bg-white border border-gray-300 rounded-lg py-2 text-center text-[13px] font-medium text-gray-700 active:bg-gray-100 transition-colors"
+             >
+               选择10 ({Math.min(selectedMsgIds.length + 10, messages.length)})
+             </button>
+             <button
+               onClick={() => {
+                 const currentCount = selectedMsgIds.length;
+                 const nextCount = currentCount + 50;
+                 const msgIds = messages.slice(0, nextCount).map((m: any) => m.id);
+                 setSelectedMsgIds(msgIds);
+               }}
+               className="flex-1 bg-white border border-gray-300 rounded-lg py-2 text-center text-[13px] font-medium text-gray-700 active:bg-gray-100 transition-colors"
+             >
+               选择50 ({Math.min(selectedMsgIds.length + 50, messages.length)})
+             </button>
+           </div>
+         </div>
       ) : (
         <div className="bg-[#f7f7f7] border-t border-gray-200 px-2 py-2 shrink-0 pb-6 flex items-end gap-1.5 min-h-[60px] relative">
           <AnimatePresence>
@@ -2788,6 +2969,21 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                            <RefreshCcw className="text-[#64748b]" size={20} strokeWidth={1.5} />
                          </div>
                          <span className="text-[11px] text-gray-500 font-medium">重回</span>
+                      </button>
+                      <button 
+                         onClick={() => {
+                           setShowPluginPanel(false);
+                           setShowWithYouModal(true);
+                         }}
+                         className="flex flex-col items-center gap-1.5"
+                      >
+                         <div className="w-10 h-10 bg-[#f4f5f7] rounded-[14px] flex items-center justify-center active:bg-gray-200 transition-colors">
+                           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+                              <path d="M15.8 9.2a2.5 2.5 0 0 0-3.5 0l-.3.4-.3-.4a2.5 2.5 0 1 0-3.6 3.5l3.9 3.9 3.9-3.9a2.5 2.5 0 0 0 0-3.5Z" />
+                           </svg>
+                         </div>
+                         <span className="text-[11px] text-gray-500 font-medium">与你</span>
                       </button>
        <button 
           onClick={() => {
@@ -3285,7 +3481,7 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
     </motion.div>
     <AnimatePresence>
       {viewingCotContent !== null && (
-        <>
+        <React.Fragment key="cot-content">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -3321,11 +3517,11 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
               </p>
             </div>
           </motion.div>
-        </>
+        </React.Fragment>
       )}
 
       {viewingMindCard && (
-        <>
+        <React.Fragment key="mind-card">
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -3369,7 +3565,7 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
               })}
             </div>
           </motion.div>
-        </>
+        </React.Fragment>
       )}
 
       {showSettings && (
@@ -3389,7 +3585,7 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
     </AnimatePresence>
     <AnimatePresence>
       {showTimestampMenu && (
-        <>
+        <React.Fragment key="timestamp-menu">
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -3429,7 +3625,7 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
               取消
             </button>
           </motion.div>
-        </>
+        </React.Fragment>
       )}
     </AnimatePresence>
     <AnimatePresence>
@@ -3502,6 +3698,15 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
                 <span className="text-[16px] text-[#333333]">删除</span>
               </button>
               <button onClick={() => {
+                setInsertModalMsg(actionMenuMsg);
+                setInsertMsgType('text');
+                setInsertText('');
+                setActionMenuMsg(null);
+              }} className="w-full flex items-center justify-center gap-2 py-[15px] border-b border-gray-200/60 active:bg-gray-200/50 bg-white">
+                <Plus size={18} className="text-[#333333]" />
+                <span className="text-[16px] text-[#333333]">插入</span>
+              </button>
+              <button onClick={() => {
                 setIsMultiSelecting(true);
                 setSelectedMsgIds([actionMenuMsg.id]);
                 setActionMenuMsg(null);
@@ -3522,8 +3727,129 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
     </AnimatePresence>
 
     <AnimatePresence>
+      {insertModalMsg && (
+        <React.Fragment key="insert-modal">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setInsertModalMsg(null)}
+            className="fixed inset-0 bg-black/50 z-[120]"
+          />
+          <motion.div
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[20px] z-[130] pb-8 flex flex-col shadow-[0_-4px_24px_rgba(0,0,0,0.12)]"
+          >
+            {/* 标题栏 */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+              <span className="text-[17px] font-medium text-gray-800">插入消息</span>
+              <button onClick={() => setInsertModalMsg(null)} className="text-gray-400 active:text-gray-600 p-1 -mr-1">
+                <X size={18} strokeWidth={2} />
+              </button>
+            </div>
+
+            {/* 类型切换 */}
+            <div className="flex items-center gap-2 px-5 pt-4 pb-2">
+              {([['text', '消息'], ['narrator', '旁白'], ['image', '图片'], ['voice', '语音']] as const).map(([type, label]) => (
+                <button
+                  key={type}
+                  onClick={() => setInsertMsgType(type)}
+                  className={`px-4 py-1.5 rounded-full text-[14px] font-medium transition-colors ${insertMsgType === type ? 'bg-[#333] text-white' : 'bg-gray-100 text-gray-600 active:bg-gray-200'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* 输入框 */}
+            <div className="px-5 py-3">
+              <textarea
+                value={insertText}
+                onChange={(e) => setInsertText(e.target.value)}
+                placeholder={insertMsgType === 'text' ? '请输入消息内容...' : insertMsgType === 'narrator' ? '请输入旁白内容...' : insertMsgType === 'image' ? '请输入图片描述或URL...' : '请输入语音内容...'}
+                autoFocus
+                className="w-full h-[100px] px-4 py-3 border border-gray-200 rounded-[12px] text-[15px] text-gray-800 placeholder-gray-400 bg-[#fafafa] focus:outline-none focus:border-[#333] focus:bg-white transition-colors resize-none"
+              />
+            </div>
+
+            {/* 上插 / 下插 按钮 */}
+            <div className="flex items-center gap-3 px-5 pt-1 pb-2">
+              <button
+                onClick={async () => {
+                  if (!insertText.trim() || !insertModalMsg) return;
+                  const targetMsg = insertModalMsg;
+                  const contactIdStr = String(friend.id);
+                  // 找到目标消息在数据库中的位置，计算上方的 fullTimestamp
+                  const targetTs = targetMsg.fullTimestamp ?? targetMsg.timestamp ?? Date.now();
+                  // 找上一条消息的时间戳
+                  const idx = messages.findIndex((m: any) => m.id === targetMsg.id);
+                  let prevTs = targetTs - 1000; // 默认前一秒
+                  if (idx > 0) {
+                    prevTs = messages[idx - 1].fullTimestamp ?? messages[idx - 1].timestamp ?? (targetTs - 1000);
+                  }
+                  const newTs = Math.floor((prevTs + targetTs) / 2);
+                  let text = insertText.trim();
+                  let msgType: string | undefined = insertMsgType === 'text' ? undefined : insertMsgType;
+                  if (insertMsgType === 'image') text = `[image:${text}]`;
+                  if (insertMsgType === 'voice') text = `[voice:${text}]`;
+                  await AppDB.messages.add({
+                    contactId: contactIdStr,
+                    fullTimestamp: newTs,
+                    text,
+                    isMe: true,
+                    msgType: msgType || 'text',
+                  });
+                  window.dispatchEvent(new Event('chat-db-updated'));
+                  setInsertModalMsg(null);
+                  setInsertText('');
+                }}
+                className="flex-1 py-3 bg-[#333] text-white rounded-[12px] text-[15px] font-medium active:bg-black transition-colors"
+              >
+                ↑ 上插
+              </button>
+              <button
+                onClick={async () => {
+                  if (!insertText.trim() || !insertModalMsg) return;
+                  const targetMsg = insertModalMsg;
+                  const contactIdStr = String(friend.id);
+                  const targetTs = targetMsg.fullTimestamp ?? targetMsg.timestamp ?? Date.now();
+                  // 找下一条消息的时间戳
+                  const idx = messages.findIndex((m: any) => m.id === targetMsg.id);
+                  let nextTs = targetTs + 1000;
+                  if (idx >= 0 && idx < messages.length - 1) {
+                    nextTs = messages[idx + 1].fullTimestamp ?? messages[idx + 1].timestamp ?? (targetTs + 1000);
+                  }
+                  const newTs = Math.floor((targetTs + nextTs) / 2);
+                  let text = insertText.trim();
+                  let msgType: string | undefined = insertMsgType === 'text' ? undefined : insertMsgType;
+                  if (insertMsgType === 'image') text = `[image:${text}]`;
+                  if (insertMsgType === 'voice') text = `[voice:${text}]`;
+                  await AppDB.messages.add({
+                    contactId: contactIdStr,
+                    fullTimestamp: newTs,
+                    text,
+                    isMe: true,
+                    msgType: msgType || 'text',
+                  });
+                  window.dispatchEvent(new Event('chat-db-updated'));
+                  setInsertModalMsg(null);
+                  setInsertText('');
+                }}
+                className="flex-1 py-3 bg-gray-100 text-[#333] rounded-[12px] text-[15px] font-medium active:bg-gray-200 transition-colors border border-gray-200"
+              >
+                ↓ 下插
+              </button>
+            </div>
+          </motion.div>
+        </React.Fragment>
+      )}
+    </AnimatePresence>
+
+    <AnimatePresence>
       {showTransferModal && (
-        <>
+        <React.Fragment key="transfer-modal">
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -3612,11 +3938,11 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
               </button>
             </div>
           </motion.div>
-        </>
+        </React.Fragment>
       )}
 
       {editingMsg && (
-        <>
+        <React.Fragment key="editing-msg">
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -3662,7 +3988,7 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
               />
             </div>
           </motion.div>
-        </>
+        </React.Fragment>
       )}
 
       {recalledContentToShow && (
@@ -3786,7 +4112,7 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
       )}
 
       {viewingImageDesc !== null && (
-        <>
+        <React.Fragment key="viewing-image-desc">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setViewingImageDesc(null)} className="fixed inset-0 bg-black/40 z-[100]" />
           <motion.div initial={{ opacity: 0, scale: 0.95, y: -20, x: '-50%' }} animate={{ opacity: 1, scale: 1, y: '-50%', x: '-50%' }} exit={{ opacity: 0, scale: 0.95, y: -20, x: '-50%' }} className="fixed top-1/2 left-1/2 w-[75%] bg-white rounded-[12px] z-[110] flex flex-col overflow-hidden">
             <div className="py-4 text-center text-[17px] font-medium text-gray-900 border-b border-gray-200">图片描述</div>
@@ -3795,11 +4121,11 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
               <button onClick={() => setViewingImageDesc(null)} className="w-full py-3 text-[16px] font-medium text-[#576B95] active:bg-gray-50 transition-colors">确定</button>
             </div>
           </motion.div>
-        </>
+        </React.Fragment>
       )}
 
       {showVoiceModal && (
-        <>
+        <React.Fragment key="show-voice-modal">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowVoiceModal(false)} className="fixed inset-0 bg-black/40 z-[100]" />
           <motion.div initial={{ opacity: 0, scale: 0.95, y: -20, x: '-50%' }} animate={{ opacity: 1, scale: 1, y: '-50%', x: '-50%' }} exit={{ opacity: 0, scale: 0.95, y: -20, x: '-50%' }} className="fixed top-1/2 left-1/2 w-[84%] bg-white rounded-[20px] z-[110] flex flex-col overflow-hidden shadow-xl">
             <div className="p-5 pb-4">
@@ -3823,11 +4149,11 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
               }} className="flex-1 py-3.5 text-[16px] font-medium text-[#576B95] active:bg-gray-50 transition-colors">发送</button>
             </div>
           </motion.div>
-        </>
+        </React.Fragment>
       )}
 
       {showImageDescModal && (
-        <>
+        <React.Fragment key="show-image-desc-modal">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowImageDescModal(false)} className="fixed inset-0 bg-black/40 z-[100]" />
           <motion.div initial={{ opacity: 0, scale: 0.95, y: -20, x: '-50%' }} animate={{ opacity: 1, scale: 1, y: '-50%', x: '-50%' }} exit={{ opacity: 0, scale: 0.95, y: -20, x: '-50%' }} className="fixed top-1/2 left-1/2 w-[80%] bg-white rounded-[12px] z-[110] flex flex-col overflow-hidden">
             <div className="p-5 pb-4">
@@ -3839,11 +4165,11 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
               <button onClick={() => { if (imageDesc.trim()) { onSendMessage(`[image:${imageDesc.trim()}]`); } setShowImageDescModal(false); }} className="flex-1 py-3 text-[16px] font-medium text-[#576B95] active:bg-gray-50 transition-colors">确定</button>
             </div>
           </motion.div>
-        </>
+        </React.Fragment>
       )}
 
       {showRedPacketModal && (
-        <>
+        <React.Fragment key="show-red-packet-modal">
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -3929,7 +4255,7 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
               </button>
             </div>
           </motion.div>
-        </>
+        </React.Fragment>
       )}
 
       {showPhoneCall && (
@@ -4047,7 +4373,7 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
                     }
                     return (
                       <div
-                        key={idx}
+                        key={`call-msg-${msg.id || idx}`}
                         className={`flex flex-col gap-1 ${msg.isMe ? 'items-end' : 'items-start'}`}
                         onPointerDown={() => {
                           callMsgLongPressTimer.current = setTimeout(() => {
@@ -4459,6 +4785,15 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
         </>
       )}
 
+      <WithYouModal
+        isOpen={showWithYouModal}
+        onClose={() => setShowWithYouModal(false)}
+        myAvatar={(myAvatar || '') as string}
+        aiAvatar={(friend.avatar || '') as string}
+        moonPhase={scheduleMoonPhase}
+        onMoonPhaseChange={(phase) => setScheduleMoonPhase(phase)}
+      />
+
       {/* 我谕道具弹窗（独立组件） */}
       <WoYuModal
         visible={showWoYuModal}
@@ -4541,18 +4876,6 @@ const FriendProfileScreen = ({ friend, onBack, onSendMessage, onClearChat }: { f
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       className="absolute inset-0 bg-[#f7f7f7] z-[70] flex flex-col pt-4"
     >
-      {/* Status Bar */}
-      <div className="flex justify-between items-center px-7 text-[13px] font-medium text-gray-800 shrink-0 bg-[#ededed] pb-2">
-        <div className="flex items-center">
-          <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
-        </div>
-        <div className="flex items-center gap-1.5 opacity-60">
-          <Signal size={14} strokeWidth={2.5} />
-          <Wifi size={14} strokeWidth={2.5} />
-          <Battery size={16} strokeWidth={2} />
-        </div>
-      </div>
-
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 shrink-0 bg-[#ededed] border-b border-gray-200/50">
         <button onClick={onBack} className="p-2 -ml-2 text-gray-800 active:bg-gray-100 rounded-full transition-colors z-10">
@@ -4707,6 +5030,8 @@ const WechatScreen = ({
   key?: React.Key;
 }) => {
   const [showPayScreen, setShowPayScreen] = useState(false);
+  const [showChangeBalanceModal, setShowChangeBalanceModal] = useState(false);
+  const [newBalanceInput, setNewBalanceInput] = useState('');
   const [walletBalance, setWalletBalance] = useState(() => {
     const saved = localStorage.getItem('wechat_wallet_balance');
     return saved ? parseFloat(saved) : 1000.00;
@@ -4742,6 +5067,11 @@ const WechatScreen = ({
     return () => window.removeEventListener('addFakeBankCard', handleAddFakeCard);
   }, []);
 
+  React.useEffect(() => {
+    // 初始化小红书链接分享模块
+    ChatXiaohongshuShare.init();
+  }, []);
+
   const [activeTab, setActiveTab] = useState<'chats' | 'contacts' | 'moments' | 'me'>('chats');
   const [showNewFriends, setShowNewFriends] = useState(false);
 
@@ -4772,18 +5102,6 @@ const WechatScreen = ({
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       className="absolute inset-0 bg-[#fefefe] z-[60] flex flex-col pt-4"
     >
-      {/* Status Bar */}
-      <div className="flex justify-between items-center px-7 text-[13px] font-medium text-gray-800 shrink-0">
-        <div className="flex items-center">
-          <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
-        </div>
-        <div className="flex items-center gap-1.5 opacity-60">
-          <Signal size={14} strokeWidth={2.5} />
-          <Wifi size={14} strokeWidth={2.5} />
-          <Battery size={16} strokeWidth={2} />
-        </div>
-      </div>
-
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 shrink-0 mt-2 border-b border-gray-100 bg-[#fefefe] relative z-20">
         <button onClick={() => showNewFriends ? setShowNewFriends(false) : onBack()} className="p-2 -ml-2 text-gray-800 active:bg-gray-100 rounded-full transition-colors z-10">
@@ -4822,9 +5140,23 @@ const WechatScreen = ({
                         <Layout size={20} strokeWidth={1.5} className="text-gray-800" />
                         <span className="text-[15px] font-medium">发起群聊</span>
                       </button>
-                      <button onClick={() => { setShowPlusMenu(false); setShowAddFriendModal(true); setSearchWechatId(''); setShowApplyModal(false); }} className="w-full relative z-10 px-4 py-3 flex items-center gap-3 text-gray-800 active:bg-gray-100 transition-colors">
+                      <button onClick={() => { setShowPlusMenu(false); setShowAddFriendModal(true); setSearchWechatId(''); setShowApplyModal(false); }} className="w-full relative z-10 px-4 py-3 flex items-center gap-3 text-gray-800 active:bg-gray-100 transition-colors border-b border-gray-50/50">
                         <UserPlus size={20} strokeWidth={1.5} className="text-gray-800" />
                         <span className="text-[15px] font-medium">添加朋友</span>
+                      </button>
+                      <button onClick={() => { setShowPlusMenu(false); }} className="w-full relative z-10 px-4 py-3 flex items-center gap-3 text-gray-800 active:bg-gray-100 transition-colors border-b border-gray-50/50">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#07C160]">
+                          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                          <circle cx="12" cy="12" r="3" fill="#07C160" />
+                        </svg>
+                        <span className="text-[15px] font-medium">与你</span>
+                      </button>
+                      <button className="w-full relative z-10 px-4 py-3 flex items-center gap-3 text-gray-800 active:bg-gray-100 transition-colors">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
+                          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                          <line x1="9" y1="3" x2="9" y2="21"></line>
+                        </svg>
+                        <span className="text-[15px] font-medium">扫一扫</span>
                       </button>
                     </motion.div>
                   </>
@@ -5290,18 +5622,6 @@ const WechatScreen = ({
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
             className="absolute inset-0 bg-[#f7f7f7] z-[120] flex flex-col pt-4"
           >
-            {/* Status Bar */}
-            <div className="flex justify-between items-center px-7 text-[13px] font-medium text-gray-800 shrink-0 bg-white pb-2">
-              <div className="flex items-center">
-                <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
-              </div>
-              <div className="flex items-center gap-1.5 opacity-60">
-                <Signal size={14} strokeWidth={2.5} />
-                <Wifi size={14} strokeWidth={2.5} />
-                <Battery size={16} strokeWidth={2} />
-              </div>
-            </div>
-
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 shrink-0 bg-white shadow-sm relative z-20">
               <button onClick={() => setShowPayScreen(false)} className="p-2 -ml-2 text-gray-800 active:bg-gray-100 rounded-full transition-colors z-10">
@@ -5311,7 +5631,12 @@ const WechatScreen = ({
                 支付
               </span>
               <div className="w-10 flex justify-end items-center mr-1">
-                <MoreHorizontal size={24} strokeWidth={2} className="text-[#333]" />
+                <button 
+                  onClick={() => setShowChangeBalanceModal(true)}
+                  className="p-1 -mr-1 text-gray-800 active:bg-gray-100 rounded-full transition-colors z-10"
+                >
+                  <MoreHorizontal size={24} strokeWidth={2} className="text-[#333]" />
+                </button>
               </div>
             </div>
 
@@ -5353,7 +5678,63 @@ const WechatScreen = ({
               </div>
             </div>
             
-            <BankAlertModal bankCards={bankCards} />
+            <BankAlertModal bankCards={bankCards} setBankCards={setBankCards} />
+            
+            <AnimatePresence>
+              {showChangeBalanceModal && (
+                <>
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setShowChangeBalanceModal(false)}
+                    className="fixed inset-0 bg-black/40 z-[200]"
+                  />
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95, y: -20, x: '-50%' }}
+                    animate={{ opacity: 1, scale: 1, y: '-50%', x: '-50%' }}
+                    exit={{ opacity: 0, scale: 0.95, y: -20, x: '-50%' }}
+                    className="fixed top-1/2 left-1/2 w-[80%] bg-white rounded-[16px] z-[210] flex flex-col overflow-hidden shadow-xl"
+                  >
+                    <div className="p-5 pb-4">
+                      <div className="text-[17px] font-medium text-gray-900 mb-4 text-center">修改余额</div>
+                      <input 
+                        type="number" 
+                        value={newBalanceInput}
+                        onChange={e => setNewBalanceInput(e.target.value)}
+                        placeholder="请输入新余额"
+                        className="w-full h-11 px-3 border border-gray-200 rounded-[8px] text-[16px] focus:outline-none focus:border-[#4AAB76] transition-colors"
+                        autoFocus
+                      />
+                    </div>
+                    
+                    <div className="flex border-t border-gray-100">
+                      <button 
+                        onClick={() => setShowChangeBalanceModal(false)}
+                        className="flex-1 py-3.5 text-[16px] font-medium text-gray-600 active:bg-gray-50 transition-colors border-r border-gray-100"
+                      >
+                        取消
+                      </button>
+                      <button 
+                        onClick={() => {
+                          const num = parseFloat(newBalanceInput);
+                          if (!isNaN(num) && num >= 0) {
+                            setWalletBalance(num);
+                            setShowChangeBalanceModal(false);
+                            setNewBalanceInput('');
+                          } else {
+                            alert('请输入有效的金额');
+                          }
+                        }}
+                        className="flex-1 py-3.5 text-[16px] font-medium text-[#4AAB76] active:bg-gray-50 transition-colors"
+                      >
+                        确定
+                      </button>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
@@ -5361,14 +5742,34 @@ const WechatScreen = ({
   );
 };
 
-const BankAlertModal = ({ bankCards }: { bankCards: any[] }) => {
+const BankAlertModal = ({ bankCards, setBankCards }: { bankCards: any[], setBankCards: any }) => {
   const [show, setShow] = useState(false);
-  
-  React.useEffect(() => {
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
     const handleShow = () => setShow(true);
     window.addEventListener('showBankAlert', handleShow);
     return () => window.removeEventListener('showBankAlert', handleShow);
   }, []);
+
+  const handleTouchStart = (idx: number) => {
+    const timer = setTimeout(() => {
+      if (window.confirm('确定要删除这张银行卡吗？')) {
+        const newBankCards = [...bankCards];
+        newBankCards.splice(idx, 1);
+        setBankCards(newBankCards);
+        localStorage.setItem('wechat_bank_cards', JSON.stringify(newBankCards));
+      }
+    }, 800);
+    setLongPressTimer(timer);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+  };
   
   if (!show) return null;
   
@@ -5402,7 +5803,16 @@ const BankAlertModal = ({ bankCards }: { bankCards: any[] }) => {
           ) : (
             <div className="w-full flex flex-col gap-3 mb-6">
               {bankCards.map((card, idx) => (
-                <div key={idx} className="w-full p-4 rounded-[8px] border border-gray-200 flex items-center justify-between">
+                <div 
+                  key={idx} 
+                  className="w-full p-4 rounded-[8px] border border-gray-200 flex items-center justify-between"
+                  onTouchStart={() => handleTouchStart(idx)}
+                  onTouchEnd={handleTouchEnd}
+                  onTouchMove={handleTouchEnd}
+                  onMouseDown={() => handleTouchStart(idx)}
+                  onMouseUp={handleTouchEnd}
+                  onMouseLeave={handleTouchEnd}
+                >
                   <span className="text-[15px] font-medium text-gray-800">尾号 8888</span>
                   <span className="text-[14px] text-gray-400">¥{card.balance.toFixed(2)}</span>
                 </div>

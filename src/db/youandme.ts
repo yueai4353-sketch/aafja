@@ -36,6 +36,7 @@ const KEY_MY_SCHEDULE      = 'youandme_my_schedule';
 const KEY_OTHER_SCHEDULE   = 'youandme_other_schedule';
 const KEY_SELECTED_PERSONA = 'youandme_selected_persona_id';
 const KEY_PERSONA_SNAPSHOT = 'youandme_persona_snapshot';
+const KEY_MOON_PHASE       = 'youandme_moon_phase'; // 'full' 圆月 | 'crescent' 残月
 
 // ---- 我的日程 ----
 export function loadMySchedule(): ScheduleItem[] {
@@ -112,6 +113,22 @@ export function savePersonaSnapshot(persona: any): void {
   localStorage.setItem(KEY_PERSONA_SNAPSHOT, JSON.stringify(snapshot));
 }
 
+// ---- 圆月/残月状态 ----
+export type MoonPhase = 'full' | 'crescent';
+
+export function loadMoonPhase(): MoonPhase {
+  try {
+    const phase = localStorage.getItem(KEY_MOON_PHASE);
+    return (phase === 'full' || phase === 'crescent') ? phase : 'full'; // 默认圆月
+  } catch {
+    return 'full';
+  }
+}
+
+export function saveMoonPhase(phase: MoonPhase): void {
+  localStorage.setItem(KEY_MOON_PHASE, phase);
+}
+
 // ======= 记忆海数据持久化 =======
 
 // --- 了解你 (AboutYouEntry) ---
@@ -172,4 +189,26 @@ export function scheduleItemsToText(items: ScheduleItem[]): string {
   return items
     .map(i => `${i.date ? i.date + '/' : ''}${i.time ? i.time + ' ' : ''}${i.text}`)
     .join('\n');
+}
+
+// ---- 关键词检索：判断用户消息是否触发日程读取 ----
+export function shouldLoadSchedule(recentMessages: any[]): boolean {
+  // 定义触发关键词列表
+  const keywords = [
+    '在干嘛', '在做什么', '干嘛呢', '做什么呢', '忙什么', '在忙什么',
+    '有空吗', '有时间吗', '什么安排', '今天安排', '明天安排', '最近安排',
+    '日程', '计划', '行程', '时间表', '什么事',
+    '在哪', '在哪里', '去哪', '要去哪', '准备去哪',
+    '几点', '什么时候', '多久', '时间'
+  ];
+
+  // 获取最近3条用户消息的文本内容
+  const recentUserTexts = recentMessages
+    .filter(m => m.isMe && m.text && m.msgType !== 'system' && m.msgType !== 'narrator')
+    .slice(-3)
+    .map(m => (m.text || '').toLowerCase())
+    .join(' ');
+
+  // 检查是否包含任何关键词
+  return keywords.some(keyword => recentUserTexts.includes(keyword.toLowerCase()));
 }

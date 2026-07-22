@@ -652,7 +652,7 @@ export const CangxuApp = ({
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="rotate-90">
                             <polyline points="15 18 9 12 15 6"></polyline>
                           </svg>
-                          <span>{previewDirection === 'up' ? (houseStructure.rooms[currentRoom].exits['up'] || houseStructure.rooms[currentRoom].exits['上']) : (houseStructure.rooms[currentRoom].exits['up'] || houseStructure.rooms[currentRoom].exits['上'])}</span>
+                          <span>{previewDirection === 'up' ? (houseStructure.rooms[currentRoom].exits['up'] || houseStructure.rooms[currentRoom].exits['上']) : ''}</span>
                         </button>
                       </div>
                     ) : (
@@ -686,7 +686,7 @@ export const CangxuApp = ({
                             <div className="absolute left-0 z-10 flex items-center">
                               {(houseStructure.rooms[currentRoom].exits?.['left'] || houseStructure.rooms[currentRoom].exits?.['左']) && (
                                 <button 
-                                  className={`w-8 h-8 rounded-lg bg-transparent border flex items-center justify-center transition-colors shadow-lg ${previewDirection === 'left' ? 'border-[#e87a90] text-[#e87a90] bg-[#e87a90]/10' : 'border-white/20 text-white/70 hover:bg-white/10'}`}
+                                  className={`px-3 py-1.5 rounded-lg bg-transparent border flex items-center justify-center transition-colors shadow-lg ${previewDirection === 'left' ? 'border-[#e87a90] text-[#e87a90] bg-[#e87a90]/10' : 'w-8 h-8 border-white/20 text-white/70 hover:bg-white/10'}`}
                                   onClick={() => {
                                     if (previewDirection === 'left') {
                                       const exits = houseStructure.rooms[currentRoom].exits;
@@ -699,6 +699,7 @@ export const CangxuApp = ({
                                   }}
                                 >
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                                  {previewDirection === 'left' && <span className="ml-1.5 text-[11px] sm:text-xs tracking-widest">{houseStructure.rooms[currentRoom].exits['left'] || houseStructure.rooms[currentRoom].exits['左']}</span>}
                                 </button>
                               )}
                             </div>
@@ -718,7 +719,7 @@ export const CangxuApp = ({
                             <div className="absolute right-0 z-10 flex items-center">
                               {(houseStructure.rooms[currentRoom].exits?.['right'] || houseStructure.rooms[currentRoom].exits?.['右']) && (
                                 <button 
-                                  className={`w-8 h-8 rounded-lg bg-transparent border flex items-center justify-center transition-colors shadow-lg ${previewDirection === 'right' ? 'border-[#e87a90] text-[#e87a90] bg-[#e87a90]/10' : 'border-white/20 text-white/70 hover:bg-white/10'}`}
+                                  className={`px-3 py-1.5 rounded-lg bg-transparent border flex items-center justify-center transition-colors shadow-lg ${previewDirection === 'right' ? 'border-[#e87a90] text-[#e87a90] bg-[#e87a90]/10' : 'w-8 h-8 border-white/20 text-white/70 hover:bg-white/10'}`}
                                   onClick={() => {
                                     if (previewDirection === 'right') {
                                       const exits = houseStructure.rooms[currentRoom].exits;
@@ -730,6 +731,7 @@ export const CangxuApp = ({
                                     }
                                   }}
                                 >
+                                  {previewDirection === 'right' && <span className="mr-1.5 text-[11px] sm:text-xs tracking-widest">{houseStructure.rooms[currentRoom].exits['right'] || houseStructure.rooms[currentRoom].exits['右']}</span>}
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                                 </button>
                               )}
@@ -791,7 +793,7 @@ export const CangxuApp = ({
                             }
                           }}
                         >
-                          <span>{previewDirection === 'down' ? (houseStructure.rooms[currentRoom].exits['down'] || houseStructure.rooms[currentRoom].exits['下']) : (houseStructure.rooms[currentRoom].exits['down'] || houseStructure.rooms[currentRoom].exits['下'])}</span>
+                          <span>{previewDirection === 'down' ? (houseStructure.rooms[currentRoom].exits['down'] || houseStructure.rooms[currentRoom].exits['下']) : ''}</span>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="-rotate-90">
                             <polyline points="15 18 9 12 15 6"></polyline>
                           </svg>

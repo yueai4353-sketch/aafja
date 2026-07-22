@@ -9,6 +9,8 @@ export interface ChatMessage {
   msgType?: string;
   recalledContent?: string;
   mindCard?: any;
+  messageType?: string; // 消息类型（如 'xiaohongshu_share'）
+  xiaohongshuShare?: string; // 小红书分享数据（JSON字符串）
 }
 
 export interface AppSetting {

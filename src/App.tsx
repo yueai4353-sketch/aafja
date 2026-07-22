@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChatDB, AppDB } from './db';
 import { MyProfileApp } from './apps/MyProfileApp';
@@ -10,6 +10,7 @@ import { WorldbookApp as WorldbookScreen } from './apps/WorldbookApp';
 import { ThemeApp as ThemeScreen } from './apps/ThemeApp';
 import { buildFullAIContext, buildPhoneCallPrompt } from './utils/aiContext';
 import { getWoKongSystemPrompt, tickProp, buildEntryNarration, getActiveRecord } from './utils/woKongManager';
+import './utils/xiaohongshuShare';
 import { loadMySchedule, loadOtherSchedule, loadPersonaSnapshot, scheduleItemsToText } from './db/youandme';
 import { BackgroundLines, IconWechat, IconCalendar, IconWeather, IconHuaji, IconWorldbook, IconDevice, IconCompanion, IconSettings, IconTheme, AppIcon, CurrentTime, SortableAppIcon, IconAccounting, IconSecret, IconMessage, IconPeriod, IconCangxu, IconMemories, IconYouAndMe, ProfileCard } from './components';
 import { WeatherApp as WeatherScreen } from './apps/WeatherApp';
@@ -86,6 +87,7 @@ import {
 import { MemoryApp as MemoryScreen } from './apps/MemoryApp';
 import { YouAndMeApp as YouAndMeScreen } from './apps/YouAndMeApp';
 import { CangxuApp as CangxuScreen } from './apps/CangxuApp';
+import { CheckPhoneApp as CheckPhoneScreen } from './apps/CheckPhoneApp';
 
 const CalendarWidget = () => {
   const [view, setView] = useState<'minimal' | 'full'>('minimal');
@@ -174,12 +176,12 @@ const CalendarWidget = () => {
         <div className="text-[#e87a90] font-extrabold tracking-wider text-[11px] sm:text-[13px] text-center mb-2 font-serif mt-1">{date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })}</div>
         <div className="grid grid-cols-7 gap-y-1 sm:gap-y-1.5 gap-x-0 w-full mb-1">
           {dayNames.map((d, i) => (
-            <div key={i} className="text-gray-400 font-semibold text-[8px] sm:text-[9px] text-center">{d}</div>
+            <div key={`dayname-${i}`} className="text-gray-400 font-semibold text-[8px] sm:text-[9px] text-center">{d}</div>
           ))}
         </div>
         <div className="grid grid-cols-7 gap-y-1 sm:gap-y-1.5 gap-x-0 w-full flex-1">
           {days.map((d, i) => (
-            <div key={i} className={`flex items-center justify-center text-[10px] sm:text-[11px] font-semibold h-[18px] sm:h-[22px] mx-0.5 sm:mx-1 ${d === today ? 'bg-[#e87a90] text-white shadow-sm shadow-[#e87a90]/40 rounded-full' : 'text-gray-700'}`}>
+            <div key={`day-${i}`} className={`flex items-center justify-center text-[10px] sm:text-[11px] font-semibold h-[18px] sm:h-[22px] mx-0.5 sm:mx-1 ${d === today ? 'bg-[#e87a90] text-white shadow-sm shadow-[#e87a90]/40 rounded-full' : 'text-gray-700'}`}>
               {d || ''}
             </div>
           ))}
@@ -190,7 +192,19 @@ const CalendarWidget = () => {
 };
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook' | 'theme' | 'memory' | 'youandme' | 'weather' | 'cangxu'>('home');
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+
+  useEffect(() => {
+    // 检测是否在 iOS Safari 中且不是 standalone 模式
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || ('standalone' in window.navigator && (window.navigator as any).standalone);
+    
+    if (isIos && !isStandalone) {
+      setShowInstallPrompt(true);
+    }
+  }, []);
+
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook' | 'theme' | 'memory' | 'youandme' | 'weather' | 'cangxu' | 'check_phone'>('home');
   const [myProfile, setMyProfile] = useState<any>(() => {
     const defaultProfile = {
       name: "江明礼",
@@ -350,7 +364,7 @@ export default function App() {
       { id: '3', iconKey: 'wechat', label: '微信', screen: 'wechat' },
       { id: '4', iconKey: 'huaji', label: '花集', screen: 'huaji' },
       { id: '5', iconKey: 'worldbook', label: '世界书', screen: 'worldbook' },
-      { id: '6', iconKey: 'device', label: '查手机', screen: null },
+      { id: '6', iconKey: 'device', label: '查手机', screen: 'check_phone' },
     ];
     if (saved) {
       try {
@@ -515,7 +529,7 @@ export default function App() {
     localStorage.setItem('os_wechat_reqs', JSON.stringify(wechatRequests));
   }, [wechatRequests]);
 
-  React.useEffect(() => {
+  const loadChatsFromDB = React.useCallback(() => {
     ChatDB.messages.toArray().then(messages => {
       const chats: Record<string, any[]> = {};
       messages.forEach(msg => {
@@ -540,6 +554,17 @@ export default function App() {
       setWechatChats(chats);
     }).catch(err => console.error("Failed to load messages", err));
   }, []);
+
+  React.useEffect(() => {
+    loadChatsFromDB();
+  }, [loadChatsFromDB]);
+
+  // 监听外部写入 DB 的事件（如 MissAV 分享）
+  React.useEffect(() => {
+    const handler = () => loadChatsFromDB();
+    window.addEventListener('chat-db-updated', handler);
+    return () => window.removeEventListener('chat-db-updated', handler);
+  }, [loadChatsFromDB]);
 
   const showGlobalToast = (msg: string) => {
     setGlobalToast(msg);
@@ -659,7 +684,25 @@ export default function App() {
     if (isPhoneCallScene) {
       // 通话场景：使用电话专用 prompt
       const disableTimeAwareness = settingsRec?.value?.disableTimeAwareness || false;
-      const nowTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+      const aiTimezone = settingsRec?.value?.aiTimezone || '跟随用户';
+      let nowTime: string;
+      
+      if (disableTimeAwareness) {
+        // 停用时间感知时不读取时间
+        nowTime = '';
+      } else if (aiTimezone === '跟随用户') {
+        // 跟随用户：使用用户所在时区（默认 Asia/Shanghai）
+        nowTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+      } else {
+        // 使用 AI 设定的时区
+        try {
+          nowTime = new Date().toLocaleString('zh-CN', { timeZone: aiTimezone });
+        } catch (e) {
+          console.warn(`时区 ${aiTimezone} 无效，回退到 Asia/Shanghai`, e);
+          nowTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+        }
+      }
+      
       const timeContextValue = disableTimeAwareness
         ? '【时间感知说明】请忽略现实中的真实系统时间，根据聊天记录中的上下文推算当前时间线。\n'
         : `【系统当前时间】${nowTime}\n`;
@@ -1452,6 +1495,48 @@ export default function App() {
         </div>
       )}
 
+      {/* iOS Install Prompt */}
+      {showInstallPrompt && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex flex-col items-center justify-center p-6 text-white pb-20">
+          <div className="bg-white/10 p-8 rounded-3xl backdrop-blur-xl border border-white/20 w-full max-w-sm flex flex-col items-center">
+            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+              <Smartphone size={32} className="text-white" />
+            </div>
+            <h2 className="text-2xl font-bold mb-3 text-center">解锁全屏沉浸体验</h2>
+            <p className="text-white/80 text-center mb-8 text-[15px] leading-relaxed">
+              为了获得无地址栏、无底栏的完美体验，请将本应用添加到主屏幕。
+            </p>
+            
+            <div className="w-full space-y-4">
+              <div className="flex items-center gap-4 bg-white/10 p-4 rounded-2xl">
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">1</div>
+                <div className="text-[15px]">点击底部导航栏的 <span className="font-bold">分享图标</span> <br/><span className="text-white/60 text-[13px]">(正中间的方框加向上箭头)</span></div>
+              </div>
+              <div className="flex items-center gap-4 bg-white/10 p-4 rounded-2xl">
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">2</div>
+                <div className="text-[15px]">下滑菜单，选择 <span className="font-bold">"添加到主屏幕"</span></div>
+              </div>
+              <div className="flex items-center gap-4 bg-white/10 p-4 rounded-2xl">
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">3</div>
+                <div className="text-[15px]">返回桌面，点击 <span className="font-bold">应用图标</span> 打开</div>
+              </div>
+            </div>
+            
+            <button 
+              onClick={() => setShowInstallPrompt(false)}
+              className="mt-8 text-white/50 text-[14px] underline underline-offset-4"
+            >
+              稍后再说 (保留浏览器原生UI)
+            </button>
+          </div>
+          <div className="absolute bottom-[20px] sm:bottom-[30px] w-full flex justify-center animate-bounce">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 4V20M12 20L6 14M12 20L18 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+        </div>
+      )}
+
       {/* OS Container */}
       <div 
         className="relative w-full max-w-7xl h-full sm:h-[95vh] sm:my-auto sm:rounded-[40px] flex flex-col overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.05)] sm:border sm:border-gray-200/50"
@@ -1665,6 +1750,13 @@ export default function App() {
               onClose={() => setCurrentScreen('home')}
               personas={personas}
               myProfile={myProfile}
+            />
+          )}
+          {currentScreen === 'check_phone' && (
+            <CheckPhoneScreen 
+              key="check_phone"
+              onBack={() => setCurrentScreen('home')}
+              personas={personas}
             />
           )}
         </AnimatePresence>

@@ -22,19 +22,6 @@ const PlotMemoryMonthDetail = ({ year, month, records, onBack, onEdit, onDelete 
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       className="absolute inset-0 bg-[#FBFBFB] z-[110] flex flex-col"
     >
-      {/* 顶部状态栏 */}
-      <div className="flex justify-between items-center px-6 pt-3 pb-2 text-[13px] font-medium text-gray-800 shrink-0 bg-transparent relative z-10">
-        <div className="flex items-center">
-          <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
-        </div>
-        <div className="flex items-center gap-1.5 opacity-60">
-          <Signal size={14} strokeWidth={2.5} />
-          <div className="font-bold tracking-tighter text-[10px] uppercase">5G</div>
-          <Wifi size={14} strokeWidth={2.5} />
-          <Battery size={16} strokeWidth={2} />
-        </div>
-      </div>
-
       {/* 标题栏 */}
       <div className="px-5 py-2 flex items-center justify-between relative shrink-0 border-b border-gray-100/50 pb-4">
         <button 
@@ -130,19 +117,6 @@ const PlotMemoryYearDetail = ({ year, records, onBack, onEdit, onDelete }: { yea
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       className="absolute inset-0 bg-[#FBFBFB] z-[100] flex flex-col"
     >
-      {/* 顶部状态栏 */}
-      <div className="flex justify-between items-center px-6 pt-3 pb-2 text-[13px] font-medium text-gray-800 shrink-0 bg-transparent relative z-10">
-        <div className="flex items-center">
-          <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
-        </div>
-        <div className="flex items-center gap-1.5 opacity-60">
-          <Signal size={14} strokeWidth={2.5} />
-          <div className="font-bold tracking-tighter text-[10px] uppercase">5G</div>
-          <Wifi size={14} strokeWidth={2.5} />
-          <Battery size={16} strokeWidth={2} />
-        </div>
-      </div>
-
       {/* 标题栏 */}
       <div className="px-5 py-2 flex items-center justify-between relative shrink-0 border-b border-gray-100/50 pb-4">
         <button 
@@ -463,19 +437,6 @@ const PlotMemory = ({ onBack }: { onBack: () => void }) => {
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       className="absolute inset-0 bg-[#FBFBFB] z-[90] flex flex-col"
     >
-      {/* 顶部状态栏 */}
-      <div className="flex justify-between items-center px-6 pt-3 pb-2 text-[13px] font-medium text-gray-800 shrink-0 bg-transparent relative z-10">
-        <div className="flex items-center">
-          <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
-        </div>
-        <div className="flex items-center gap-1.5 opacity-60">
-          <Signal size={14} strokeWidth={2.5} />
-          <div className="font-bold tracking-tighter text-[10px] uppercase">5G</div>
-          <Wifi size={14} strokeWidth={2.5} />
-          <Battery size={16} strokeWidth={2} />
-        </div>
-      </div>
-
       {/* 标题栏 */}
       <div className="px-5 py-2 flex items-center justify-between relative shrink-0 border-b border-gray-100/50 pb-4">
         <button 
@@ -796,19 +757,6 @@ const AboutYouCategoryDetail = ({ category, entries, onBack, onEdit, onDelete }:
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       className="absolute inset-0 bg-[#FBFBFB] z-[100] flex flex-col"
     >
-      {/* 顶部状态栏 */}
-      <div className="flex justify-between items-center px-6 pt-3 pb-2 text-[13px] font-medium text-gray-800 shrink-0 bg-transparent relative z-10">
-        <div className="flex items-center">
-          <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
-        </div>
-        <div className="flex items-center gap-1.5 opacity-60">
-          <Signal size={14} strokeWidth={2.5} />
-          <div className="font-bold tracking-tighter text-[10px] uppercase">5G</div>
-          <Wifi size={14} strokeWidth={2.5} />
-          <Battery size={16} strokeWidth={2} />
-        </div>
-      </div>
-
       {/* 标题栏 */}
       <div className="px-5 py-2 flex items-center justify-between relative shrink-0 border-b border-gray-100/50 pb-4">
         <button 
@@ -953,19 +901,6 @@ const AboutYouMemory = ({ onBack }: { onBack: () => void }) => {
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       className="absolute inset-0 bg-[#FBFBFB] z-[90] flex flex-col"
     >
-      {/* 顶部状态栏 */}
-      <div className="flex justify-between items-center px-6 pt-3 pb-2 text-[13px] font-medium text-gray-800 shrink-0 bg-transparent relative z-10">
-        <div className="flex items-center">
-          <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
-        </div>
-        <div className="flex items-center gap-1.5 opacity-60">
-          <Signal size={14} strokeWidth={2.5} />
-          <div className="font-bold tracking-tighter text-[10px] uppercase">5G</div>
-          <Wifi size={14} strokeWidth={2.5} />
-          <Battery size={16} strokeWidth={2} />
-        </div>
-      </div>
-
       {/* 标题栏 */}
       <div className="px-5 py-2 flex items-center justify-between relative shrink-0 border-b border-gray-100/50 pb-4">
         <button 
@@ -1192,19 +1127,6 @@ const MemorySea = ({ onBack }: { onBack: () => void }) => {
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       className="absolute inset-0 bg-[#FBFBFB] z-[80] flex flex-col"
     >
-      {/* 顶部状态栏 */}
-      <div className="flex justify-between items-center px-6 pt-3 pb-2 text-[13px] font-medium text-gray-800 shrink-0 bg-transparent relative z-10">
-        <div className="flex items-center">
-          <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
-        </div>
-        <div className="flex items-center gap-1.5 opacity-60">
-          <Signal size={14} strokeWidth={2.5} />
-          <div className="font-bold tracking-tighter text-[10px] uppercase">5G</div>
-          <Wifi size={14} strokeWidth={2.5} />
-          <Battery size={16} strokeWidth={2} />
-        </div>
-      </div>
-
       {/* 标题栏 */}
       <div className="px-5 py-2 flex items-center relative shrink-0 border-b border-gray-100/50 pb-4">
         <button 
@@ -1335,19 +1257,6 @@ const MemoryDetail = ({ persona, onBack }: { persona: any, onBack: () => void })
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       className="absolute inset-0 bg-[#F9F9F9] z-[70] flex flex-col"
     >
-      {/* 顶部状态栏 */}
-      <div className="flex justify-between items-center px-6 pt-3 pb-2 text-[13px] font-medium text-gray-800 shrink-0 bg-transparent relative z-10">
-        <div className="flex items-center">
-          <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
-        </div>
-        <div className="flex items-center gap-1.5 opacity-60">
-          <Signal size={14} strokeWidth={2.5} />
-          <div className="font-bold tracking-tighter text-[10px] uppercase">5G</div>
-          <Wifi size={14} strokeWidth={2.5} />
-          <Battery size={16} strokeWidth={2} />
-        </div>
-      </div>
-
       {/* 标题栏 */}
       <div className="px-5 py-2 flex items-center relative shrink-0">
         <button 
@@ -1427,21 +1336,8 @@ export const MemoryApp = ({ onBack, personas }: MemoryAppProps) => {
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       className="absolute inset-0 bg-[#F9F9F9] z-[60] flex flex-col"
     >
-      {/* 顶部状态栏 */}
-      <div className="flex justify-between items-center px-6 pt-3 pb-2 text-[13px] font-medium text-gray-800 shrink-0 bg-transparent relative z-10">
-        <div className="flex items-center">
-          <CurrentTime /> <Moon size={11} className="ml-1 opacity-80" fill="currentColor" strokeWidth={1} />
-        </div>
-        <div className="flex items-center gap-1.5 opacity-60">
-          <Signal size={14} strokeWidth={2.5} />
-          <div className="font-bold tracking-tighter text-[10px] uppercase">5G</div>
-          <Wifi size={14} strokeWidth={2.5} />
-          <Battery size={16} strokeWidth={2} />
-        </div>
-      </div>
-
       {/* 标题栏 */}
-      <div className="px-5 py-2 flex items-center relative shrink-0">
+      <div className="px-5 py-2 flex items-center relative shrink-0 mt-2">
         <button 
           onClick={onBack}
           className="p-2 -ml-2 rounded-full active:bg-gray-200 transition-colors z-10"

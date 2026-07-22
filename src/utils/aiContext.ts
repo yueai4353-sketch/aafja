@@ -1,5 +1,5 @@
 import { AppDB } from '../db';
-import { loadPlotMemories, loadAboutYouEntries } from '../db/youandme';
+import { loadPlotMemories, loadAboutYouEntries, loadMySchedule, loadOtherSchedule, scheduleItemsToText, shouldLoadSchedule, loadMoonPhase } from '../db/youandme';
 import { buildAssetContext } from './assetContext';
 
 /**
@@ -300,6 +300,49 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
         }
     }
 
+    // === 5. 智能日程读取（基于关键词触发） ===
+    let scheduleContext = '';
+    // 判断是否需要读取日程：根据最近消息中的关键词
+    if (shouldLoadSchedule(recentMessages)) {
+        const moonPhase = loadMoonPhase(); // 'full' 圆月 | 'crescent' 残月
+        
+        // AI自己的日程（对方日程）：总是读取
+        const aiSchedule = loadOtherSchedule();
+        if (aiSchedule.length > 0) {
+            const aiScheduleText = scheduleItemsToText(aiSchedule);
+            scheduleContext += `【你的日程安排】\n${aiScheduleText}\n`;
+        }
+        
+        // 用户日程（我的日程）：仅在圆月状态下读取
+        if (moonPhase === 'full') {
+            const userSchedule = loadMySchedule();
+            if (userSchedule.length > 0) {
+                const userScheduleText = scheduleItemsToText(userSchedule);
+                scheduleContext += `\n【对方的日程安排】\n${userScheduleText}\n`;
+            }
+        }
+    }
+
+    // === 5-2. 智能手机密码读取（基于关键词触发） ===
+    let phonePasswordContext = '';
+    const phonePasswordKeywords = ['手机密码', '解锁密码', '锁屏密码', '手机锁', '密码是什么', '密码是多少', '手机解锁', '开机密码'];
+    const recentTextsForPhone = recentMessages.slice(-6).map((m: any) => (m.text || '').toLowerCase()).join(' ');
+    const shouldLoadPhonePassword = phonePasswordKeywords.some(kw => recentTextsForPhone.includes(kw));
+    if (shouldLoadPhonePassword && persona?.id) {
+        try {
+            const cached = localStorage.getItem('os_checkphone_passwords');
+            if (cached) {
+                const passwords = JSON.parse(cached);
+                const entry = passwords[persona.id];
+                if (entry && entry.password) {
+                    phonePasswordContext = `【你的手机密码】你的手机锁屏密码是 ${entry.password}。你可以根据你们的关系和当前情境决定是否告诉对方、怎么告诉对方（比如直接说、给提示、或者拒绝）。`;
+                }
+            }
+        } catch (e) {
+            console.warn('[手机密码上下文] 读取失败:', e);
+        }
+    }
+
     let prompt = '';
     
     // 收集聊天记录中用户发送的图片 base64（用于多模态 Vision 请求）
@@ -368,8 +411,23 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
         // 开关开启：不注入真实时间，告知 AI 根据上下文推算时间线
         timeContextValue = result.timeContext || `【时间感知说明】请忽略现实中的真实系统时间，不要依赖任何外部时钟。请根据聊天记录中的上下文、事件发展和对话内容来推算当前所处的时间线。\n`;
     } else {
-        // 开关关闭（默认）：注入真实当前时间
-        const nowTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+        // 开关关闭（默认）：根据 AI 所在时区读取时间
+        const aiTimezone = settingsRec?.value?.aiTimezone || '跟随用户';
+        let nowTime: string;
+        
+        if (aiTimezone === '跟随用户') {
+            // 跟随用户：使用用户所在时区（默认 Asia/Shanghai）
+            nowTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+        } else {
+            // 使用 AI 设定的时区
+            try {
+                nowTime = new Date().toLocaleString('zh-CN', { timeZone: aiTimezone });
+            } catch (e) {
+                console.warn(`时区 ${aiTimezone} 无效，回退到 Asia/Shanghai`, e);
+                nowTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+            }
+        }
+        
         timeContextValue = result.timeContext || `【系统当前时间】${nowTime}\n`;
     }
 
@@ -386,6 +444,8 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
             memoryContent: result.memoryContent,
             letterContext: `\n【最近聊天记录】\n${formattedHistory}\n`,
             timeContext: timeContextValue,
+            scheduleContext: scheduleContext,
+            phonePasswordContext: phonePasswordContext,
             userGender: myProfile?.gender || '',
             aiPov: aiPov,
             userPov: userPov,
@@ -425,7 +485,6 @@ export function buildPhoneCallPrompt(data: any, currentPersona: any = null) {
     const fpContext = data.fpContext || '';
     const timeContext = data.timeContext || '';
     const mindCardContext = data.mindCardContext || '';
-
     const scheduleContext = data.scheduleContext || '';
 
     const worldRealityBlock = worldbookForceContent ? `══════════ 【你所在世界的事实】══════════
@@ -436,7 +495,7 @@ ${worldbookForceContent}
 
     // 日程 & 人设快照块（有数据才注入，节省 token）
     const scheduleBlock = scheduleContext
-        ? `\n【近期日程安排（来自"你我之间"）】\n${scheduleContext}\n`
+        ? `\n【近期日程安排】\n${scheduleContext}\n`
         : '';
 
     return `你是${aiName}，微信上叫"${wechatNickname}"。
@@ -494,6 +553,7 @@ export function buildAutoOfflineSystemPromptV2(data: any, currentPersona: any = 
     const fpWalletHint = data.fpWalletHint || '';
     const timeContext = data.timeContext || '';
     const mindCardContext = data.mindCardContext || '';
+    const phonePasswordContext = data.phonePasswordContext || '';
     const customStyle = data.customStyle || '';
     const userGender = data.userGender || '';
     const aiPov = data.aiPov;
@@ -583,7 +643,7 @@ ${memoryContent ? '\n' + memoryContent : ''}
 ${fpContext}${letterContext}${groupSyncContext || ''}
 ${timeContext}
 ${mindCardContext}
-
+${phonePasswordContext ? '\n' + phonePasswordContext + '\n' : ''}
 ${worldRealityBlock}${worldbookContent ? '\n【你知道的事】\n' + worldbookContent + '\n' : ''}${socialNetwork ? '\n' + socialNetwork + '\n' : ''}
 【你面对的人】
 ${userPersona}

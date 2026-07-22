@@ -4,11 +4,218 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
 
+// 辅助函数：安全文本
+function safeText(value: any): string {
+  if (value == null) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number') return String(value);
+  return String(value).trim();
+}
+
+// 辅助函数：解析时间戳
+function parseTimestamp(value: any): number {
+  if (typeof value === 'number') return value > 0 ? value : 0;
+  if (typeof value === 'string') {
+    const num = parseInt(value, 10);
+    return !isNaN(num) && num > 0 ? num : 0;
+  }
+  return 0;
+}
+
+// 辅助函数：解析数字
+function parseCount(value: any): number {
+  if (typeof value === 'number') return value >= 0 ? value : 0;
+  if (typeof value === 'string') {
+    const num = parseInt(value, 10);
+    return !isNaN(num) && num >= 0 ? num : 0;
+  }
+  return 0;
+}
+
+// 映射第三方数据到前端格式
+function mapThirdPartyDataToFrontend(thirdPartyData: any, originalUrl: string, sourceText: string): any {
+  const data = thirdPartyData || {};
+  
+  // 基础信息
+  const url = safeText(data.url || originalUrl);
+  const title = safeText(data.title || data.noteTitle || data.noteName);
+  const description = safeText(data.desc || data.description || data.noteDesc || data.content);
+  const authorName = safeText(data.authorName || data.author || data.nickname || data.userName);
+  const ipLocation = safeText(data.ipLocation || data.ip_location);
+  
+  // 封面和图片
+  const coverUrl = safeText(data.coverUrl || data.cover || data.imageUrl);
+  const images = Array.isArray(data.images) ? data.images.map(safeText).filter(Boolean) : 
+                 Array.isArray(data.imageList) ? data.imageList.map(safeText).filter(Boolean) : 
+                 coverUrl ? [coverUrl] : [];
+  
+  // 类型判断
+  let postType = 'unknown';
+  const typeStr = safeText(data.type || data.noteType || data.postType).toLowerCase();
+  if (typeStr === 'video' || data.video || data.videoUrl) {
+    postType = 'video';
+  } else if (typeStr === 'image' || images.length > 0) {
+    postType = 'image';
+  }
+  
+  // 统计数据
+  const stats = {
+    likedCount: safeText(data.likedCount || data.likeCount || data.likes || ''),
+    collectedCount: safeText(data.collectedCount || data.collectCount || data.collects || ''),
+    commentCount: safeText(data.commentCount || data.comments || ''),
+    shareCount: safeText(data.shareCount || data.shares || '')
+  };
+  
+  // 评论数据
+  const comments = Array.isArray(data.comments) ? data.comments.map((comment: any) => ({
+    authorName: safeText(comment.authorName || comment.author || comment.nickname),
+    content: safeText(comment.content || comment.text || comment.comment),
+    likeCount: safeText(comment.likeCount || comment.likes || ''),
+    createdAtText: safeText(comment.createdAt || comment.time),
+    ipLocation: safeText(comment.ipLocation || comment.ip),
+    isNoteAuthor: comment.isAuthor === true || comment.isNoteAuthor === true,
+    subComments: Array.isArray(comment.subComments) ? comment.subComments.map((sub: any) => ({
+      authorName: safeText(sub.authorName || sub.author || sub.nickname),
+      content: safeText(sub.content || sub.text),
+      targetAuthorName: safeText(sub.targetAuthorName || sub.replyTo),
+      likeCount: safeText(sub.likeCount || sub.likes || ''),
+      createdAtText: safeText(sub.createdAt || sub.time),
+      ipLocation: safeText(sub.ipLocation || sub.ip),
+      isNoteAuthor: sub.isAuthor === true || sub.isNoteAuthor === true
+    })) : []
+  })) : [];
+  
+  // 标签
+  const tags = Array.isArray(data.tags) ? data.tags.map(safeText).filter(Boolean) : [];
+  
+  // 时间信息
+  const publishedAt = parseTimestamp(data.publishedAt || data.publishTime || data.createTime);
+  const publishedAtText = safeText(data.publishedAtText || data.publishTimeText || data.createTimeText);
+  const updatedAt = parseTimestamp(data.updatedAt || data.updateTime);
+  const updatedAtText = safeText(data.updatedAtText || data.updateTimeText);
+  
+  // 视频信息
+  const videoInfo: any = {
+    coverUrl: safeText(data.videoCover || data.video?.cover || coverUrl),
+    duration: safeText(data.videoDuration || data.video?.duration),
+    durationSeconds: parseCount(data.videoDurationSeconds || data.video?.durationSeconds),
+    width: safeText(data.videoWidth || data.video?.width),
+    height: safeText(data.videoHeight || data.video?.height),
+    videoUrl: safeText(data.videoUrl || data.video?.url),
+    transcript: safeText(data.transcript || data.video?.transcript || data.subtitle),
+    transcriptLanguage: safeText(data.transcriptLanguage || data.video?.transcriptLang),
+    transcriptTruncated: false
+  };
+  
+  // 主页信息（如果是主页分享）
+  const profile: any = {
+    userId: safeText(data.userId || data.user?.id),
+    nickname: safeText(data.nickname || data.user?.nickname || authorName),
+    redId: safeText(data.redId || data.user?.redId || data.xiaohongshuId),
+    avatarUrl: safeText(data.avatar || data.avatarUrl || data.user?.avatar),
+    description: safeText(data.userDesc || data.user?.description),
+    ipLocation: safeText(data.userIpLocation || data.user?.ipLocation || ipLocation),
+    verifiedInfo: safeText(data.verifiedInfo || data.user?.verified),
+    stats: {
+      followingCount: safeText(data.followingCount || data.user?.following || ''),
+      followerCount: safeText(data.followerCount || data.user?.follower || data.fans || ''),
+      likedAndCollectedCount: safeText(data.likedAndCollected || data.user?.likeCollect || ''),
+      noteCount: safeText(data.noteCount || data.user?.notes || '')
+    }
+  };
+  
+  // 商品信息（如果是商品分享）
+  const product: any = {
+    productId: safeText(data.productId || data.goodsId || data.skuId),
+    title: safeText(data.goodsName || data.productName || title),
+    description: safeText(data.goodsDesc || data.productDesc || description),
+    price: safeText(data.price || data.currentPrice),
+    originalPrice: safeText(data.originalPrice || data.marketPrice),
+    coverUrl: safeText(data.goodsCover || data.productCover || coverUrl),
+    images: Array.isArray(data.goodsImages) ? data.goodsImages.map(safeText).filter(Boolean) : images,
+    shopName: safeText(data.shopName || data.store),
+    brandName: safeText(data.brandName || data.brand),
+    salesText: safeText(data.sales || data.salesCount)
+  };
+  
+  // 判断分享类型
+  let shareKind = 'note';
+  if (data.shareKind === 'profile' || data.type === 'user' || data.isUserProfile) {
+    shareKind = 'profile';
+  } else if (data.shareKind === 'product' || data.type === 'goods' || data.isProduct || product.productId) {
+    shareKind = 'product';
+  }
+  
+  // 组装返回数据
+  return {
+    platform: 'xiaohongshu',
+    shareKind,
+    postType,
+    url,
+    resolvedUrl: safeText(data.resolvedUrl || url),
+    canonicalUrl: safeText(data.canonicalUrl || data.shareUrl || url),
+    shareId: safeText(data.shareId || data.noteId || data.id),
+    sourceText,
+    title,
+    description,
+    authorName,
+    ipLocation,
+    coverUrl,
+    images,
+    videoFrames: Array.isArray(data.videoFrames) ? data.videoFrames.map(safeText).filter(Boolean) : [],
+    comments,
+    tags,
+    stats,
+    profile,
+    profilePosts: Array.isArray(data.profilePosts) ? data.profilePosts : [],
+    product,
+    publishedAt,
+    publishedAtText,
+    updatedAt,
+    updatedAtText,
+    imageCount: parseCount(data.imageCount || images.length),
+    imageSummary: {
+      totalCount: parseCount(data.imageSummary?.totalCount || data.imageCount || images.length),
+      parsedCount: parseCount(data.imageSummary?.parsedCount || images.length),
+      hasMore: data.imageSummary?.hasMore === true
+    },
+    commentSummary: {
+      totalCount: safeText(data.commentSummary?.totalCount || data.commentCount || stats.commentCount),
+      topLevelCount: safeText(data.commentSummary?.topLevelCount || ''),
+      parsedCount: parseCount(data.commentSummary?.parsedCount || comments.length),
+      parsedReplyCount: parseCount(data.commentSummary?.parsedReplyCount || 0),
+      hasMore: data.commentSummary?.hasMore === true
+    },
+    videoInfo,
+    status: 'ready',
+    fetchedAt: Date.now(),
+    error: ''
+  };
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
   app.use(express.json({ limit: '10mb' }));
+
+  // CORS 配置 — 允许指定来源访问 API
+  const allowedOrigins = [
+    'https://aafja.pages.dev',
+    'http://localhost:3000',
+  ];
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin.replace(/\/$/, ''))) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(204);
+    }
+    next();
+  });
 
   // API Route for Gemini Chat / Custom OpenAI compatible Chat
   app.post("/api/chat", async (req, res) => {
@@ -200,6 +407,74 @@ async function startServer() {
     } catch (error: any) {
       console.error("Vision API Error:", error);
       return res.status(500).json({ error: error?.message || "图片识别失败" });
+    }
+  });
+
+  // Xiaohongshu metadata proxy route
+  app.get("/meta/xiaohongshu", async (req, res) => {
+    try {
+      const url = (req.query.url as string || '').trim();
+      const sourceText = (req.query.sourceText as string || '').trim();
+      
+      console.log('[Xiaohongshu API] Request received for URL:', url);
+      
+      if (!url) {
+        console.log('[Xiaohongshu API] Error: Missing url parameter');
+        return res.status(400).json({ error: '缺少 url 参数', status: 'failed' });
+      }
+      
+      // 调用第三方接口
+      const thirdPartyUrl = `http://apis.ppt6.top?clientId=202037511&clientSecretKey=32A4FD9DCA2FEFF7CDF3A63E2C09B9016363FDD348E4537449&url=${encodeURIComponent(url)}`;
+      console.log('[Xiaohongshu API] Fetching from third-party API...');
+      
+      const response = await fetch(thirdPartyUrl, {
+        headers: { 
+          'User-Agent': 'Mozilla/5.0',
+          'Accept': 'application/json'
+        },
+        signal: AbortSignal.timeout(30000) // 30秒超时
+      });
+      
+      console.log('[Xiaohongshu API] Third-party response status:', response.status);
+      
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('[Xiaohongshu API] Third-party error response:', text.slice(0, 200));
+        return res.status(200).json({ 
+          error: `第三方接口返回错误: ${response.status}`,
+          status: 'failed',
+          url,
+          sourceText
+        });
+      }
+      
+      const thirdPartyData = await response.json();
+      console.log('[Xiaohongshu API] Third-party data received, keys:', Object.keys(thirdPartyData || {}));
+      
+      // 数据映射转换逻辑
+      const mappedData = mapThirdPartyDataToFrontend(thirdPartyData, url, sourceText);
+      
+      console.log('[Xiaohongshu API] Successfully mapped data, shareKind:', mappedData.shareKind);
+      res.json(mappedData);
+      
+    } catch (err: any) {
+      console.error('[Xiaohongshu API] Exception:', err);
+      
+      if (err.name === 'AbortError') {
+        return res.status(200).json({ 
+          error: '小红书解析请求超时',
+          status: 'failed',
+          url: req.query.url || '',
+          sourceText: req.query.sourceText || ''
+        });
+      }
+      
+      res.status(200).json({ 
+        error: err?.message || '小红书解析失败',
+        status: 'failed',
+        url: req.query.url || '',
+        sourceText: req.query.sourceText || ''
+      });
     }
   });
 
