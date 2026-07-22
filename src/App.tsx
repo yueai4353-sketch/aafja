@@ -1957,7 +1957,7 @@ export default function App() {
 
 
           {/* Bottom Dock */}
-          <div className="flex-shrink-0 flex flex-col justify-end pb-3 sm:pb-6 relative z-20 px-4 sm:px-8 md:px-20 lg:px-32" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}>
+          <div className="flex-shrink-0 flex flex-col justify-end pb-3 sm:pb-6 relative z-20 px-4 sm:px-8 md:px-20 lg:px-32">
             <div className="px-2 sm:px-5 py-3 sm:py-4 flex justify-around items-center w-full bg-white/20 backdrop-blur-2xl rounded-[32px] sm:rounded-[40px] shadow-[0_8px_32px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_0_20px_rgba(255,255,255,0.1)] border border-white/30 backdrop-saturate-150">
               <AppIcon onClick={() => setCurrentScreen('settings')} icon={<IconSettings />} label="设置" />
               <AppIcon icon={<IconMessage />} label="短信" />
