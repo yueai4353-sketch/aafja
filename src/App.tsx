@@ -1360,8 +1360,7 @@ export default function App() {
 
   return (
     <div 
-      className="w-full flex justify-center overflow-hidden relative"
-      style={{ height: '100dvh' }}
+      className="fixed inset-0 w-full flex justify-center overflow-hidden"
     >
       {/* Edit Modal */}
       {editModal && editModal.isOpen && (
