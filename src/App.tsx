@@ -439,10 +439,13 @@ export default function App() {
   // Sync body background with desktop wallpaper so safe-area inset region
   // shows the same background instead of a white gap (Safari)
   React.useEffect(() => {
+    // 同步更新 body::before 伪层背景（通过 CSS 变量），确保 Safari 底部区域也覆盖
     if (desktopBg) {
-      document.body.style.background = `url(${desktopBg}) center/cover no-repeat`;
+      document.documentElement.style.setProperty('--app-bg', `url(${desktopBg}) center/cover no-repeat`);
+      document.documentElement.style.background = '#ffe4e1';
     } else {
-      document.body.style.background = 'linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%)';
+      document.documentElement.style.setProperty('--app-bg', 'linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%)');
+      document.documentElement.style.background = '#ffe4e1';
     }
   }, [desktopBg]);
 

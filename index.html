@@ -25,9 +25,9 @@
 
     <!-- iOS splash screens (prevent white flash) -->
     <style>
-      /* 防止 iOS Safari/PWA 底部白边：统一背景 + 100dvh + safe-area */
+      /* Safari 底部工具栏修复：html 用渐变终点色，body 用 fixed 伪层覆盖 */
       html {
-        background: #fff0f5;
+        background: #ffe4e1;
         height: 100%;
         margin: 0;
         padding: 0;
@@ -44,15 +44,28 @@
         width: 100%;
         height: 100dvh;
         height: -webkit-fill-available;
-        min-height: 100dvh;
+        min-height: 100vh;
         min-height: -webkit-fill-available;
         box-sizing: border-box;
+        position: relative;
+      }
+      /* Safari 底部兜底：fixed 伪层覆盖工具栏后面的区域 */
+      body::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: -200px;
+        z-index: -1;
+        background: linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%);
+        pointer-events: none;
       }
       #root {
         width: 100%;
         height: 100%;
         overflow: hidden;
-        background: linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%);
+        background: transparent;
       }
     </style>
   </head>

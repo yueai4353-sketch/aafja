@@ -29,35 +29,43 @@
     touch-action: pan-x pan-y;
     box-sizing: border-box;
     -webkit-text-size-adjust: 100%;
-    /* 统一背景色：覆盖所有可能露出的区域 */
-    background: #fff0f5;
+    /* Safari 底部工具栏区域由 html 背景色决定，使用渐变终点色避免色差 */
+    background: #ffe4e1;
   }
 
   body {
     width: 100%;
-    /* 使用 100dvh：iOS Safari 动态视口高度，自动排除工具栏 */
     height: 100dvh;
-    /* 回退：不支持 dvh 的旧浏览器 */
     height: -webkit-fill-available;
     margin: 0;
     padding: 0;
-    /* 移除 padding-bottom，让内容完全延伸到底部 */
     overflow: hidden;
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x pan-y;
     box-sizing: border-box;
-    /* 统一背景色：与应用渐变一致，消除任何白边 */
     background: linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%);
     background-attachment: fixed;
-    /* 强制背景延伸到底部安全区域 */
-    min-height: 100dvh;
+    /* Safari：用 100vh（不是 dvh）确保背景色覆盖包括工具栏后面的区域 */
+    min-height: 100vh;
     min-height: -webkit-fill-available;
+  }
+
+  /* Safari 底部兜底：fixed 伪层覆盖所有可见区域（包括工具栏后面） */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: -200px; /* 故意超出，覆盖 Safari 工具栏后面的区域 */
+    z-index: -1;
+    background: var(--app-bg, linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%));
+    pointer-events: none;
   }
 
   #root {
     width: 100%;
-    /* 填满 body 的全部高度（含 safe-area padding） */
     height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
@@ -65,8 +73,7 @@
     touch-action: pan-x pan-y;
     box-sizing: border-box;
     padding: 0;
-    /* 统一背景色兜底 */
-    background: linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%);
+    background: transparent;
   }
 }
 
