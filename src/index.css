@@ -30,8 +30,8 @@
     touch-action: pan-x pan-y;
     box-sizing: border-box;
     -webkit-text-size-adjust: 100%;
-    /* Safari 底部工具栏区域由 html 背景色决定，使用渐变终点色避免色差 */
-    background: #ffe4e1;
+    /* 使用中性灰色避免底部粉色条 */
+    background: #f3f3f3;
   }
 
   body {
@@ -45,8 +45,7 @@
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x pan-y;
     box-sizing: border-box;
-    background: linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%);
-    background-attachment: fixed;
+    background: #f3f3f3;
   }
 
 
