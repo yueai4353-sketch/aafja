@@ -30,7 +30,6 @@
     touch-action: pan-x pan-y;
     box-sizing: border-box;
     -webkit-text-size-adjust: 100%;
-    background: transparent;
   }
 
   body {
@@ -44,7 +43,6 @@
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x pan-y;
     box-sizing: border-box;
-    background: transparent;
   }
 
 
@@ -58,7 +56,6 @@
     touch-action: pan-x pan-y;
     box-sizing: border-box;
     padding: 0;
-    background: transparent;
   }
 }
 
