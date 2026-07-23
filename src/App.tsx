@@ -1695,10 +1695,10 @@ export default function App() {
         </AnimatePresence>
 
         {/* Desktop Screen Content (Type A: Fixed, No Scroll) - 仅桌面时显示 */}
-        <div className={`flex-1 w-full relative z-10 flex flex-col overflow-hidden pt-[max(16px,env(safe-area-inset-top,16px))] ${currentScreen !== 'home' ? 'hidden' : ''}`}>
+        <div className={`flex-1 w-full relative z-10 flex flex-col overflow-hidden pt-[max(16px,env(safe-area-inset-top,16px))] pb-[100px] ${currentScreen !== 'home' ? 'hidden' : ''}`}>
 
           {/* Main Desktop Layout */}
-          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden justify-center">
             {/* App Grid Layer */}
           <div 
               className="flex-1 min-h-0 flex flex-col relative overflow-hidden"
