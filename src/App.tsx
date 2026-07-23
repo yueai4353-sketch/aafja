@@ -1695,7 +1695,7 @@ export default function App() {
         </AnimatePresence>
 
         {/* Desktop Screen Content (Type A: Fixed, No Scroll) - 仅桌面时显示 */}
-        <div className={`flex-1 w-full relative z-10 flex flex-col overflow-hidden ${currentScreen !== 'home' ? 'hidden' : ''}`}>
+        <div className={`flex-1 w-full relative z-10 flex flex-col overflow-hidden pt-8 ${currentScreen !== 'home' ? 'hidden' : ''}`}>
 
           {/* Main Desktop Layout */}
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
