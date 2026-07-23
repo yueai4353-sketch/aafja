@@ -436,7 +436,7 @@ export default function App() {
     }
   }, []);
 
-  // Sync html/body background with current screen to prevent color leaking in Safari safe-area
+  // Sync html/body background with current screen
   React.useEffect(() => {
     if (currentScreen === 'home') {
       document.documentElement.style.background = '#ffe4e1';
@@ -444,9 +444,9 @@ export default function App() {
         ? `url(${desktopBg}) center/cover no-repeat`
         : 'linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%)';
     } else {
-      // 非桌面页面：使用子页面自身的背景色，避免粉色从底部漏出
-      document.documentElement.style.background = '#ededed';
-      document.body.style.background = '#ededed';
+      // 非桌面页面：与子页面背景色一致，彻底消除露色
+      document.documentElement.style.background = '#f3f3f3';
+      document.body.style.background = '#f3f3f3';
     }
   }, [desktopBg, currentScreen]);
 
@@ -1487,7 +1487,7 @@ export default function App() {
             ? (desktopBg 
               ? `url(${desktopBg}) center/cover no-repeat` 
               : 'linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%)')
-            : '#ededed',
+            : '#f3f3f3',
         }}
       >
         
@@ -1711,8 +1711,8 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Desktop Screen Content (Type A: Fixed, No Scroll) */}
-        <div className="flex-1 w-full relative z-10 flex flex-col overflow-hidden">
+        {/* Desktop Screen Content (Type A: Fixed, No Scroll) - 仅桌面时显示 */}
+        <div className={`flex-1 w-full relative z-10 flex flex-col overflow-hidden ${currentScreen !== 'home' ? 'hidden' : ''}`}>
 
           {/* Main Desktop Layout */}
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
