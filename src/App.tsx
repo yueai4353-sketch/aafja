@@ -1948,7 +1948,7 @@ export default function App() {
               </div>
 
               {/* Page Indicators */}
-              <div className="flex justify-center gap-2 mt-4 mb-2">
+              <div className="flex justify-center gap-2 mt-2 mb-0">
                 <div className={`w-2 h-2 rounded-full ${currentPage === 0 ? 'bg-gray-800' : 'bg-gray-400'}`} />
                 <div className={`w-2 h-2 rounded-full ${currentPage === 1 ? 'bg-gray-800' : 'bg-gray-400'}`} />
               </div>
@@ -1957,7 +1957,7 @@ export default function App() {
 
 
           {/* Bottom Dock - 完全贴底无间隙 */}
-          <div className="flex-shrink-0 flex flex-col justify-end relative z-20 px-4 sm:px-8 md:px-20 lg:px-32 pt-1 pb-2">
+          <div className="flex-shrink-0 flex flex-col justify-end relative z-20 px-4 sm:px-8 md:px-20 lg:px-32 pt-1 pb-[max(8px,env(safe-area-inset-bottom))]">
             <div className="px-2 sm:px-5 py-3 sm:py-4 flex justify-around items-center w-full bg-white/20 backdrop-blur-2xl rounded-[32px] sm:rounded-[40px] shadow-[0_8px_32px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_0_20px_rgba(255,255,255,0.1)] border border-white/30 backdrop-saturate-150">
               <AppIcon onClick={() => setCurrentScreen('settings')} icon={<IconSettings />} label="设置" />
               <AppIcon icon={<IconMessage />} label="短信" />
