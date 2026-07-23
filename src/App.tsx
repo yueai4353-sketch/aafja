@@ -1695,7 +1695,7 @@ export default function App() {
         </AnimatePresence>
 
         {/* Desktop Screen Content (Type A: Fixed, No Scroll) - 仅桌面时显示 */}
-        <div className={`flex-1 w-full relative z-10 flex flex-col overflow-hidden pt-[max(16px,env(safe-area-inset-top,16px))] pb-[100px] ${currentScreen !== 'home' ? 'hidden' : ''}`}>
+        <div className={`flex-1 w-full relative z-10 flex flex-col overflow-hidden pt-4 pb-[100px] ${currentScreen !== 'home' ? 'hidden' : ''}`}>
 
           {/* Main Desktop Layout */}
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden justify-center">
@@ -1945,7 +1945,7 @@ export default function App() {
 
           {/* Bottom Dock - 仅在主桌面显示，绝对定位贴底 */}
           <div className={`absolute bottom-0 left-0 right-0 z-20 px-4 sm:px-8 md:px-20 lg:px-32 ${currentScreen !== 'home' ? 'hidden' : ''}`}>
-            <div className="px-2 sm:px-5 pt-4 sm:pt-5 pb-[calc(env(safe-area-inset-bottom,8px)+8px)] flex justify-around items-center w-full bg-white/20 backdrop-blur-2xl rounded-t-[32px] sm:rounded-t-[40px] rounded-b-none shadow-[0_8px_32px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_0_20px_rgba(255,255,255,0.1)] border border-white/30 border-b-0 backdrop-saturate-150">
+            <div className="px-2 sm:px-5 pt-4 sm:pt-5 pb-4 sm:pb-5 flex justify-around items-center w-full bg-white/20 backdrop-blur-2xl rounded-t-[32px] sm:rounded-t-[40px] rounded-b-none shadow-[0_8px_32px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_0_20px_rgba(255,255,255,0.1)] border border-white/30 border-b-0 backdrop-saturate-150">
               <AppIcon onClick={() => setCurrentScreen('settings')} icon={<IconSettings />} label="设置" />
               <AppIcon icon={<IconMessage />} label="短信" />
               <AppIcon icon={<IconCompanion />} label="陪伴" />
