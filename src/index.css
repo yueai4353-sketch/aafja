@@ -51,18 +51,6 @@
     min-height: -webkit-fill-available;
   }
 
-  /* Safari 底部兜底：fixed 伪层覆盖所有可见区域（包括工具栏后面） */
-  body::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: -200px; /* 故意超出，覆盖 Safari 工具栏后面的区域 */
-    z-index: -1;
-    background: var(--app-bg, linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%));
-    pointer-events: none;
-  }
 
   #root {
     width: 100%;

@@ -49,18 +49,6 @@
         box-sizing: border-box;
         position: relative;
       }
-      /* Safari 底部兜底：fixed 伪层覆盖工具栏后面的区域 */
-      body::before {
-        content: '';
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: -200px;
-        z-index: -1;
-        background: linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%);
-        pointer-events: none;
-      }
       #root {
         width: 100%;
         height: 100%;
