@@ -436,18 +436,19 @@ export default function App() {
     }
   }, []);
 
-  // Sync body background with desktop wallpaper so safe-area inset region
-  // shows the same background instead of a white gap (Safari)
+  // Sync html/body background with current screen to prevent color leaking in Safari safe-area
   React.useEffect(() => {
-    // 同步更新 body::before 伪层背景（通过 CSS 变量），确保 Safari 底部区域也覆盖
-    if (desktopBg) {
-      document.documentElement.style.setProperty('--app-bg', `url(${desktopBg}) center/cover no-repeat`);
+    if (currentScreen === 'home') {
       document.documentElement.style.background = '#ffe4e1';
+      document.body.style.background = desktopBg
+        ? `url(${desktopBg}) center/cover no-repeat`
+        : 'linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%)';
     } else {
-      document.documentElement.style.setProperty('--app-bg', 'linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%)');
-      document.documentElement.style.background = '#ffe4e1';
+      // 非桌面页面：使用子页面自身的背景色，避免粉色从底部漏出
+      document.documentElement.style.background = '#ededed';
+      document.body.style.background = '#ededed';
     }
-  }, [desktopBg]);
+  }, [desktopBg, currentScreen]);
 
   const [editModal, setEditModal] = useState<{isOpen: boolean, title: string, value: string, setterKey: string, setter: (v: string) => void} | null>(null);
 
@@ -1482,9 +1483,11 @@ export default function App() {
       <div 
         className="relative w-full max-w-7xl h-full flex flex-col overflow-hidden"
         style={{
-          background: desktopBg 
-            ? `url(${desktopBg}) center/cover no-repeat` 
-            : 'linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%)',
+          background: currentScreen === 'home'
+            ? (desktopBg 
+              ? `url(${desktopBg}) center/cover no-repeat` 
+              : 'linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%)')
+            : '#ededed',
         }}
       >
         
