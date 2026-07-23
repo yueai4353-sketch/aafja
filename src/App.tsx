@@ -1374,11 +1374,9 @@ export default function App() {
     <div 
       className="w-full flex justify-center overflow-hidden relative"
       style={{
-        height: '100dvh',
-        minHeight: '-webkit-fill-available',
-        background: desktopBg 
-          ? `url(${desktopBg}) center/cover no-repeat` 
-          : 'linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%)'
+        height: '100vh',
+        minHeight: '100vh',
+        background: 'transparent'
       }}
     >
       {/* Edit Modal */}
@@ -1482,7 +1480,7 @@ export default function App() {
 
       {/* OS Container */}
       <div 
-        className="relative w-full max-w-7xl h-full sm:my-auto sm:rounded-[40px] flex flex-col overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.05)] sm:border sm:border-gray-200/50"
+        className="relative w-full max-w-7xl h-full flex flex-col overflow-hidden"
         style={{
           background: desktopBg 
             ? `url(${desktopBg}) center/cover no-repeat` 
