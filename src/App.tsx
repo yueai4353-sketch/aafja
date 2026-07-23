@@ -436,19 +436,6 @@ export default function App() {
     }
   }, []);
 
-  // Sync html/body background with current screen
-  React.useEffect(() => {
-    if (currentScreen === 'home') {
-      document.documentElement.style.background = '#ffe4e1';
-      document.body.style.background = desktopBg
-        ? `url(${desktopBg}) center/cover no-repeat`
-        : 'linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%)';
-    } else {
-      // 非桌面页面：与子页面背景色一致，彻底消除露色
-      document.documentElement.style.background = '#f3f3f3';
-      document.body.style.background = '#f3f3f3';
-    }
-  }, [desktopBg, currentScreen]);
 
   const [editModal, setEditModal] = useState<{isOpen: boolean, title: string, value: string, setterKey: string, setter: (v: string) => void} | null>(null);
 
@@ -1373,12 +1360,7 @@ export default function App() {
 
   return (
     <div 
-      className="w-full flex justify-center overflow-hidden relative"
-      style={{
-        height: '100vh',
-        minHeight: '100vh',
-        background: 'transparent'
-      }}
+      className="w-full h-full flex justify-center overflow-hidden relative"
     >
       {/* Edit Modal */}
       {editModal && editModal.isOpen && (

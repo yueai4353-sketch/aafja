@@ -35,8 +35,7 @@
 
   body {
     width: 100%;
-    height: 100dvh;
-    height: -webkit-fill-available;
+    height: 100%;
     margin: 0;
     padding: 0;
     overflow: hidden;
@@ -46,9 +45,6 @@
     box-sizing: border-box;
     background: linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%);
     background-attachment: fixed;
-    /* Safari：用 100vh（不是 dvh）确保背景色覆盖包括工具栏后面的区域 */
-    min-height: 100vh;
-    min-height: -webkit-fill-available;
   }
 
 
