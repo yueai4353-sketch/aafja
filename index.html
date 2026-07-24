@@ -25,24 +25,19 @@
 
     <!-- iOS splash screens (prevent white flash) -->
     <style>
-      /* 全屏布局：html/body 铺满视口，#root 用 fixed inset:0 确保 iOS 不出白条 */
+      /* 全屏布局：html/body 铺满视口，使用 100dvh 确保 iOS 紧贴屏幕边缘 */
       html, body {
         margin: 0;
         padding: 0;
         width: 100%;
-        height: 100%;
+        height: 100dvh;
         overflow: hidden;
         overscroll-behavior: none;
         background: #fff0f5;
       }
       #root {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
         width: 100%;
-        height: 100%;
+        height: 100dvh;
         overflow: hidden;
       }
     </style>

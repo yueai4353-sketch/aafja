@@ -1465,7 +1465,7 @@ export default function App() {
 
       {/* OS Container */}
       <div 
-        className="absolute top-0 left-0 right-0 bottom-0 w-full max-w-7xl mx-auto flex flex-col overflow-hidden"
+        className="absolute inset-0 w-full h-[100dvh] max-w-7xl mx-auto flex flex-col overflow-hidden"
         style={{
           background: currentScreen === 'home'
             ? (desktopBg 
