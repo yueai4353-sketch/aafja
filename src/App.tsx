@@ -1362,8 +1362,20 @@ export default function App() {
 
   return (
     <div 
-      className="w-full h-full flex justify-center overflow-hidden"
+      className="relative w-full h-[100dvh] flex justify-center overflow-hidden"
     >
+      {/* Background Layer - 铺满且不加安全区边距 */}
+      <div 
+        className="absolute inset-0 z-0 pointer-events-none"
+        style={{
+          background: currentScreen === 'home'
+            ? (desktopBg 
+              ? `url(${desktopBg}) center/cover no-repeat` 
+              : 'linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%)')
+            : '#f3f3f3',
+        }}
+      />
+
       {/* Edit Modal */}
       {editModal && editModal.isOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[200] flex items-center justify-center pt-[100px] px-4">
@@ -1465,14 +1477,7 @@ export default function App() {
 
       {/* OS Container */}
       <div 
-        className="w-full max-w-7xl h-full flex flex-col overflow-hidden"
-        style={{
-          background: currentScreen === 'home'
-            ? (desktopBg 
-              ? `url(${desktopBg}) center/cover no-repeat` 
-              : 'linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%)')
-            : '#f3f3f3',
-        }}
+        className="relative z-10 w-full max-w-7xl h-full flex flex-col overflow-hidden"
       >
         
         <AnimatePresence>
