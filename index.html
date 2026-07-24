@@ -2,8 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>春锦梨 (v1.0.2-debug)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    <title>春锦梨</title>
     
     <!-- iOS WebApp Meta Tags -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -14,7 +14,7 @@
     
     <!-- Prevent iOS dark mode overrides -->
     <meta name="color-scheme" content="light" />
-    <meta name="theme-color" content="#00ffff" />
+    <meta name="theme-color" content="#fff0f5" />
     
     <!-- PWA Manifest & Icons -->
     <link rel="manifest" href="/manifest.json" />
@@ -25,23 +25,24 @@
 
     <!-- iOS splash screens (prevent white flash) -->
     <style>
-      /* 全屏布局：html/body 铺满视口，使用 100dvh 确保 iOS 紧贴屏幕边缘 */
+      /* 全屏布局：html/body 铺满视口，#root 用 fixed inset:0 确保 iOS 不出白条 */
       html, body {
         margin: 0;
         padding: 0;
         width: 100%;
-        height: 100dvh;
+        height: 100%;
         overflow: hidden;
         overscroll-behavior: none;
-        position: fixed; /* 锁死根层级，防止 iOS 橡皮筋滚动 */
       }
       #root {
-        width: 100%;
-        height: 100dvh;
-        overflow: hidden;
         position: fixed;
-        left: 0;
         top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
       }
     </style>
   </head>

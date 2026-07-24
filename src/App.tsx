@@ -1362,14 +1362,7 @@ export default function App() {
 
   return (
     <div 
-      className="fixed inset-0 w-full h-[100dvh] flex justify-center overflow-hidden"
-      style={{
-        background: currentScreen === 'home'
-          ? (desktopBg 
-            ? `url(${desktopBg}) center/cover no-repeat fixed` 
-            : 'linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%)')
-          : '#f3f3f3',
-      }}
+      className="w-full h-full flex justify-center overflow-hidden"
     >
       {/* Edit Modal */}
       {editModal && editModal.isOpen && (
@@ -1472,7 +1465,14 @@ export default function App() {
 
       {/* OS Container */}
       <div 
-        className="w-full h-full max-w-7xl mx-auto flex flex-col overflow-hidden relative"
+        className="w-full max-w-7xl h-full flex flex-col overflow-hidden"
+        style={{
+          background: currentScreen === 'home'
+            ? (desktopBg 
+              ? `url(${desktopBg}) center/cover no-repeat` 
+              : 'linear-gradient(135deg, #fff0f5 0%, #ffe4e1 100%)')
+            : '#f3f3f3',
+        }}
       >
         
         <AnimatePresence>
