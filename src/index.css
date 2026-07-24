@@ -25,6 +25,9 @@
     padding: 0;
     overflow: hidden;
     overscroll-behavior: none;
+    position: fixed; /* 避免弹性滚动露出背景 */
+    top: 0;
+    left: 0;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x pan-y;
     box-sizing: border-box;
@@ -38,6 +41,9 @@
     padding: 0;
     overflow: hidden;
     overscroll-behavior: none;
+    position: fixed; /* 避免弹性滚动露出背景 */
+    top: 0;
+    left: 0;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x pan-y;
     box-sizing: border-box;
@@ -48,6 +54,9 @@
     height: 100dvh;
     overflow: hidden;
     overscroll-behavior: none;
+    position: fixed; /* 避免弹性滚动露出背景 */
+    top: 0;
+    left: 0;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x pan-y;
     box-sizing: border-box;
