@@ -1362,7 +1362,7 @@ export default function App() {
 
   return (
     <div 
-      className="fixed inset-0 w-full flex justify-center overflow-hidden"
+      className="fixed top-0 left-0 right-0 bottom-0 w-full h-full flex justify-center overflow-hidden"
     >
       {/* Edit Modal */}
       {editModal && editModal.isOpen && (
