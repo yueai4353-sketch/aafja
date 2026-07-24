@@ -2385,7 +2385,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                 } else {
                     parts = [{ type: 'narrator', text: cleanText }];
                 }
-            } else if (cleanText.startsWith('[红包]') || cleanText.startsWith('[TRANSFER:') || cleanText.match(/^\[image:.*\]$/) || cleanText.match(/^\[voice:.*\]$/)) {
+            } else if (cleanText.startsWith('[红包]') || cleanText.startsWith('[TRANSFER:') || cleanText.match(/^\[image:.*\]$/) || cleanText.match(/^\[sticker:.*\]$/) || cleanText.match(/^\[voice:.*\]$/)) {
                 parts = [{ type: 'special', text: cleanText }];
             } else {
                 const hasDialogue = cleanText.includes('「') && cleanText.includes('」');
@@ -2542,7 +2542,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                         const text = group.parts[0].text;
                         const isRedPacket = text.startsWith('[红包] ');
                         const isTransfer = text.startsWith('[TRANSFER:');
-                        const isImage = text.match(/^\[image:(.*)\]$/);
+                        const isImage = text.match(/^\[image:(.*)\]$/) || text.match(/^\[sticker:(.*)\]$/);
                         const isVoice = text.match(/^\[voice:([\s\S]*)\]$/);
 
                         let content = null;
@@ -2588,14 +2588,18 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                             </div>
                           );
                         } else if (isImage) {
-                          const desc = isImage[1];
+                          const rawDesc = isImage[1];
+                          // 支持 [sticker:url|label] 格式：提取URL用于渲染原图
+                          const pipeIdx = rawDesc.indexOf('|');
+                          const hasPipeFormat = pipeIdx > 0 && /^(https?:\/\/|data:)/.test(rawDesc);
+                          const desc = hasPipeFormat ? rawDesc.substring(0, pipeIdx) : rawDesc;
                           // 判断是否为真实图片 URL 或 base64（以 http/https/data: 开头）
                           const isRealImage = /^(https?:\/\/|data:image\/)/.test(desc);
                           content = (
                             <div 
                               className={`rounded-[10px] overflow-hidden select-none bg-transparent flex items-center justify-center ${isMultiSelecting ? '' : 'cursor-pointer active:brightness-95'}`}
                               style={{ maxWidth: '120px', maxHeight: '120px', minWidth: '40px', minHeight: '40px' }}
-                              onClick={() => { if (!isMultiSelecting && !isRealImage) setViewingImageDesc(desc); }}
+                              onClick={() => { if (!isMultiSelecting && !isRealImage) setViewingImageDesc(hasPipeFormat ? rawDesc.substring(pipeIdx + 1) : desc); }}
                               onPointerDown={() => { if (!isMultiSelecting) startLongPress(msg); }}
                               onPointerUp={() => { if (!isMultiSelecting) cancelLongPress(); }}
                               onPointerLeave={() => { if (!isMultiSelecting) cancelLongPress(); }}
@@ -3410,22 +3414,24 @@ ${worldbookText ? `【世界书背景知识】\n${worldbookText}\n` : ''}${myPro
             {showStickerPanel && (
               <StickerPanel
                 onClose={() => setShowStickerPanel(false)}
-                onSendSticker={async (stickerUrl) => {
-                  // 1. 先在聊天中展示表情包
-                  onSendMessage(`[image:${stickerUrl}]`);
+                onSendSticker={async (stickerUrl, label) => {
+                  if (label && label.trim()) {
+                    // 有文字描述：保存URL和label，格式 [sticker:url|label]，渲染时显示原图，AI上下文读取label
+                    onSendMessage(`[sticker:${stickerUrl}|${label.trim()}]`);
+                  } else {
+                    // 没有文字描述：发送 URL 并调用 AI 识图
+                    onSendMessage(`[sticker:${stickerUrl}]`);
 
-                  // 2. 将图片转成 base64 并调用 AI 识图
-                  try {
-                    const base64 = await compressImage(stickerUrl, { maxWidth: 400, maxHeight: 400, quality: 0.7 });
-                    const desc = await analyzeImage(base64, {
-                      prompt: '这是用户发送的一张表情包。请完成以下两件事：①识别并完整列出图中出现的所有文字；②用一句话描述这张表情包所表达的情绪或含义。格式：【图中文字】: xxx（无文字则写"无"）\n【表情包含义】: xxx',
-                    });
-                    // 3. 把识别结果作为系统消息注入，让 AI 明白用户发了什么
-                    onSendMessage(`[用户发送了一张表情包，AI识图结果：${desc}]`, 'system');
-                  } catch (err) {
-                    console.warn('[Sticker Vision] 识图失败:', err);
-                    // 识图失败不阻断流程，仍然发一条简短提示
-                    onSendMessage('[用户发送了一张表情包]', 'system');
+                    try {
+                      const base64 = await compressImage(stickerUrl, { maxWidth: 400, maxHeight: 400, quality: 0.7 });
+                      const desc = await analyzeImage(base64, {
+                        prompt: '这是用户发送的一张表情包。请完成以下两件事：①识别并完整列出图中出现的所有文字；②用一句话描述这张表情包所表达的情绪或含义。格式：【图中文字】: xxx（无文字则写"无"）\n【表情包含义】: xxx',
+                      });
+                      onSendMessage(`[用户发送了一张表情包，AI识图结果：${desc}]`, 'system');
+                    } catch (err) {
+                      console.warn('[Sticker Vision] 识图失败:', err);
+                      onSendMessage('[用户发送了一张表情包]', 'system');
+                    }
                   }
                 }}
               />

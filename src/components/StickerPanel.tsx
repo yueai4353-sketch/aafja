@@ -16,7 +16,7 @@ interface StickerGroup {
 
 interface StickerPanelProps {
   onClose: () => void;
-  onSendSticker: (stickerUrl: string) => void;
+  onSendSticker: (stickerUrl: string, label?: string) => void;
 }
 
 const STORAGE_KEY = 'sticker_groups_v2';
@@ -380,7 +380,7 @@ const StickerPanel: React.FC<StickerPanelProps> = ({ onClose, onSendSticker }) =
                       return next;
                     });
                   } else {
-                    onSendSticker(item.url);
+                    onSendSticker(item.url, item.label);
                     onClose();
                   }
                 }}

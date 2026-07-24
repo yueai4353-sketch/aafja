@@ -12,7 +12,7 @@ import { buildFullAIContext, buildPhoneCallPrompt } from './utils/aiContext';
 import { getWoKongSystemPrompt, tickProp, buildEntryNarration, getActiveRecord } from './utils/woKongManager';
 import './utils/xiaohongshuShare';
 import { loadMySchedule, loadOtherSchedule, loadPersonaSnapshot, scheduleItemsToText } from './db/youandme';
-import { BackgroundLines, IconWechat, IconCalendar, IconWeather, IconHuaji, IconWorldbook, IconDevice, IconCompanion, IconSettings, IconTheme, AppIcon, CurrentTime, SortableAppIcon, IconAccounting, IconSecret, IconMessage, IconPeriod, IconCangxu, IconMemories, IconYouAndMe, IconFeatureIntro, ProfileCard } from './components';
+import { BackgroundLines, IconWechat, IconCalendar, IconWeather, IconHuaji, IconWorldbook, IconDevice, IconCompanion, IconSettings, IconTheme, AppIcon, CurrentTime, SortableAppIcon, IconAccounting, IconSecret, IconMessage, IconPeriod, IconCangxu, IconMemories, IconYouAndMe, IconFeatureIntro, IconMengrenjian, ProfileCard } from './components';
 import { WeatherApp as WeatherScreen } from './apps/WeatherApp';
 import {
   DndContext,
@@ -293,6 +293,7 @@ export default function App() {
       { id: '5', iconKey: 'worldbook', label: '世界书', screen: 'worldbook' },
       { id: '6', iconKey: 'device', label: '查手机', screen: 'check_phone' },
       { id: '12', iconKey: 'feature_intro', label: '功能介绍', screen: 'feature_intro' },
+      { id: '13', iconKey: 'mengrenjian', label: '梦人间', screen: null },
     ];
     if (saved) {
       try {
@@ -401,6 +402,7 @@ export default function App() {
     cangxu: <IconCangxu />,
     memories: <IconMemories />,
     feature_intro: <IconFeatureIntro />,
+    mengrenjian: <IconMengrenjian />,
   };
 
   const handleAppClick = (screen: any) => {
@@ -1149,7 +1151,7 @@ export default function App() {
             const isLast = i === msgsToSave.length - 1;
             
             // 检查是否是特殊消息（转账、红包等）
-            const isSpecialMsg = rtext.startsWith('[红包]') || rtext.startsWith('[TRANSFER:') || rtext.match(/^\[image:.*\]$/);
+            const isSpecialMsg = rtext.startsWith('[红包]') || rtext.startsWith('[TRANSFER:') || rtext.match(/^\[image:.*\]$/) || rtext.match(/^\[sticker:.*\]$/);
             
             if (isSpecialMsg) {
                 allMessagesToAdd.push({

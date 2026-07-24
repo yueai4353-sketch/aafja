@@ -149,6 +149,21 @@ export const IconMemories = () => (
   </svg>
 );
 
+export const IconMengrenjian = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* 月亮 */}
+    <path d="M15.5 6C14.2 6 13 6.5 12.1 7.3C13.3 8.4 14 10.1 14 12C14 13.9 13.3 15.6 12.1 16.7C13 17.5 14.2 18 15.5 18C18.5 18 21 15.3 21 12C21 8.7 18.5 6 15.5 6Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill="currentColor" fillOpacity="0.08"/>
+    {/* 云朵 */}
+    <path d="M4 16.5C4 15.1 5.1 14 6.5 14C6.6 14 6.8 14 6.9 14C7.3 12.8 8.5 12 9.8 12C10.5 12 11.1 12.2 11.6 12.6C12 11.7 12.9 11 14 11C15.4 11 16.5 12.1 16.5 13.5C16.5 13.7 16.5 13.8 16.4 14C17.3 14.2 18 15 18 16C18 17.1 17.1 18 16 18H6C4.9 18 4 17.3 4 16.5Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" fill="currentColor" fillOpacity="0.05"/>
+    {/* 星星 */}
+    <circle cx="6" cy="7" r="0.8" fill="currentColor"/>
+    <circle cx="9" cy="5" r="0.6" fill="currentColor"/>
+    <circle cx="4.5" cy="10" r="0.5" fill="currentColor"/>
+    {/* 大星 */}
+    <path d="M8 9L8.4 7.8L9.6 7.4L8.4 7L8 5.8L7.6 7L6.4 7.4L7.6 7.8L8 9Z" fill="currentColor" fillOpacity="0.6"/>
+  </svg>
+);
+
 export const IconFeatureIntro = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M12 2L13.5 8.5L20 7L15.5 12L20 17L13.5 15.5L12 22L10.5 15.5L4 17L8.5 12L4 7L10.5 8.5L12 2Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>

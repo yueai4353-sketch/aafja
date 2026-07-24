@@ -348,8 +348,14 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
     // 收集聊天记录中用户发送的图片 base64（用于多模态 Vision 请求）
     const imageMessages: string[] = [];
 
-    // 格式化消息为文本行
-    const formatOneMsg = (msg: any): string => {
+    // 记录已被表情包合并消费的系统消息索引，避免重复输出
+    const consumedIndexes = new Set<number>();
+
+    // 格式化消息为文本行（支持索引，用于向后查找紧随的系统识图消息）
+    const formatOneMsg = (msg: any, index: number): string => {
+        // 如果该消息已被前面的表情包合并消费，跳过
+        if (consumedIndexes.has(index)) return '';
+
         if (msg.msgType === 'system' || msg.msgType === 'narrator') {
             if (msg.text === '你撤回了一条消息' && msg.recalledContent) {
                  const secondsMatch = msg.recalledContent.match(/\[SECONDS:(\d+)\]$/);
@@ -372,11 +378,40 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
             }
             return `${msg.isMe ? myProfile?.name || '我' : persona.name}: [图片]`;
         }
-        // 表情包消息：text 格式为 [image:url] 或 [image:描述]，在历史记录中标记为 [表情包]
-        // 这样 AI 能正确理解对方发的是表情包而不是普通文字
-        const stickerMatch = text.match(/^\[image:([\s\S]+)\]$/);
+        // 表情包/图片消息：text 格式为 [image:url]、[image:描述] 或 [sticker:url]
+        const stickerMatch = text.match(/^\[image:([\s\S]+)\]$/) || text.match(/^\[sticker:([\s\S]+)\]$/);
         if (stickerMatch) {
-            return `${msg.isMe ? myProfile?.name || '我' : persona.name}: [表情包]`;
+            let desc = stickerMatch[1].trim();
+            // 支持 [sticker:url|label] 格式：提取 label 用于 AI 上下文
+            const pipeIdx = desc.indexOf('|');
+            if (pipeIdx > 0 && /^(https?:\/\/|data:)/.test(desc)) {
+                desc = desc.substring(pipeIdx + 1).trim();
+            }
+            const isUrl = desc.startsWith('http://') || desc.startsWith('https://') || desc.startsWith('data:');
+            if (isUrl) {
+                // URL 类型表情包：向后查找紧随的系统识图消息，提取描述
+                const nextMsg = recentMessages[index + 1];
+                if (nextMsg && (nextMsg.msgType === 'system' || nextMsg.isSystem)) {
+                    const nextText = nextMsg.text || '';
+                    // 匹配格式：[用户发送了一张表情包，AI识图结果：xxx]
+                    const descMatch = nextText.match(/\[用户发送了一张表情包，AI识图结果：([\s\S]+)\]/);
+                    if (descMatch) {
+                        // 标记该系统消息已被消费
+                        consumedIndexes.add(index + 1);
+                        // 提取表情包含义（优先从【表情包含义】字段获取简洁描述）
+                        const meaningMatch = descMatch[1].match(/【表情包含义】[:：]\s*([\s\S]+?)$/);
+                        const stickerMeaning = meaningMatch ? meaningMatch[1].trim() : descMatch[1].trim();
+                        return `${msg.isMe ? myProfile?.name || '我' : persona.name}: [表情包]：${stickerMeaning}`;
+                    }
+                    // 匹配简短格式：[用户发送了一张表情包]（识图失败情况）
+                    if (nextText.includes('[用户发送了一张表情包]')) {
+                        consumedIndexes.add(index + 1);
+                    }
+                }
+                return `${msg.isMe ? myProfile?.name || '我' : persona.name}: [表情包]`;
+            }
+            // 非 URL 的描述文本：将描述内容传递给 AI，让 AI 能理解这张图片的具体内容
+            return `${msg.isMe ? myProfile?.name || '我' : persona.name}: [图片]：${desc}`;
         }
         return `${msg.isMe ? myProfile?.name || '我' : persona.name}: ${text}`;
     };
@@ -396,12 +431,13 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
     // 生成历史文本（最新用户消息之前的部分，不含该条消息本身）
     const historyLines = recentMessages
         .slice(0, lastUserMsgIdx >= 0 ? lastUserMsgIdx : recentMessages.length)
-        .map(formatOneMsg)
+        .map((m, i) => formatOneMsg(m, i))
+        .filter(line => line !== '')
         .join('\n');
 
     // 最新用户消息单独拎出来，放到末尾并加强调标记，提示 AI 这才是需要回复的主体
     const latestUserLine = lastUserMsgIdx >= 0
-        ? `\n⚠️【用户最新消息，这是你本轮需要回复的主体】\n${formatOneMsg(recentMessages[lastUserMsgIdx])}`
+        ? `\n⚠️【用户最新消息，这是你本轮需要回复的主体】\n${formatOneMsg(recentMessages[lastUserMsgIdx], lastUserMsgIdx)}`
         : '';
 
     const formattedHistory = historyLines + latestUserLine;
@@ -716,7 +752,7 @@ ${offlineMindCard}
 以下标记会出现在你收到的消息里（不是你输出的）：
 撤回：对方撤回时，你会在方括号里收到原内容、撤回了多少秒、和你当时的活跃状态。这是给你的语境数据，不是你亲眼看见，按你的状态自行决定有没有注意到。回复里不要出现"系统""提示"这类词。
 虚拟图片：对方消息里出现 "[图片]：具体内容" 时，是对方发的一张图，内容就是冒号后面那句。像真看见图一样回应，别说"收到描述"之类的话。
-表情包：对方消息里出现 "[表情包]" 时，表示对方发来了一张表情包（是一种带有情绪或梗意的趣味图片）。紧随其后通常会有一条系统说明告诉你这张表情包的内容和含义，结合那条说明来理解并自然回应，就像真的看见了这张表情包一样。
+表情包：对方消息里出现 "[表情包]：描述" 时，是对方发了一张表情包，冒号后面是这张表情包表达的情绪或含义。像真的看见了这张表情包一样自然回应，别说"收到描述"之类的话。如果只出现 "[表情包]" 没有冒号和描述，说明识别失败，你只知道对方发了表情包但不确定内容。
 [SILENT_CONTINUE] 不是对方说的话——它在没有对方实际消息的时候出现，不用回应它，也不要把它写进回复。
 
 直接以这一轮你选定的格式回复，开头不堆铺垫、不加标记。`;
