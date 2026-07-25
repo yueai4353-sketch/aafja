@@ -44,14 +44,16 @@ export const ThemeApp: React.FC<ThemeAppProps> = ({ onBack, desktopBg, onUpdateD
   return (
     <div className="absolute inset-0 z-50 bg-neutral-50 flex flex-col animate-in slide-in-from-right-full duration-300">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 flex-shrink-0">
-        <button onClick={onBack} className="p-2 -ml-2 active:bg-gray-100 rounded-full transition-colors flex items-center justify-center">
-          <ChevronLeft size={24} className="text-gray-700" />
-        </button>
-        <span className="font-medium text-[16px] text-gray-800 absolute left-1/2 -translate-x-1/2">
-          主题设置
-        </span>
-        <div className="w-10"></div>
+      <div className="flex-shrink-0 bg-white border-b border-gray-100 pt-[env(safe-area-inset-top,0px)]">
+        <div className="h-14 flex items-center justify-between px-4">
+          <button onClick={onBack} className="p-2 -ml-2 active:bg-gray-100 rounded-full transition-colors flex items-center justify-center">
+            <ChevronLeft size={24} className="text-gray-700" />
+          </button>
+          <span className="font-medium text-[16px] text-gray-800 absolute left-1/2 -translate-x-1/2">
+            主题设置
+          </span>
+          <div className="w-10"></div>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6">

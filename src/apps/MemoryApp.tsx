@@ -20,7 +20,7 @@ const PlotMemoryMonthDetail = ({ year, month, records, onBack, onEdit, onDelete 
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 50 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="absolute inset-0 bg-[#FBFBFB] z-[110] flex flex-col"
+      className="absolute inset-0 bg-[#FBFBFB] z-[110] flex flex-col pt-[env(safe-area-inset-top,0px)]"
     >
       {/* 标题栏 */}
       <div className="px-5 py-2 flex items-center justify-between relative shrink-0 border-b border-gray-100/50 pb-4">
@@ -1334,10 +1334,10 @@ export const MemoryApp = ({ onBack, personas }: MemoryAppProps) => {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96, y: 15 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="absolute inset-0 bg-[#F9F9F9] z-[60] flex flex-col"
+      className="absolute inset-0 bg-[#F9F9F9] z-[60] flex flex-col pt-[env(safe-area-inset-top,0px)]"
     >
       {/* 标题栏 */}
-      <div className="px-5 py-2 flex items-center relative shrink-0 mt-2">
+      <div className="h-14 px-5 flex items-center relative shrink-0">
         <button 
           onClick={onBack}
           className="p-2 -ml-2 rounded-full active:bg-gray-200 transition-colors z-10"

@@ -507,7 +507,7 @@ const updateSetting = async (key: string, value: any) => {
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="absolute inset-0 bg-[#f3f3f3] z-[90] flex flex-col pt-4"
+      className="absolute inset-0 bg-[#f3f3f3] z-[90] flex flex-col pt-[env(safe-area-inset-top,0px)]"
     >
 
       {/* Header */}
@@ -1868,7 +1868,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="absolute inset-0 bg-[#ededed] z-[80] flex flex-col pt-4"
+      className="absolute inset-0 bg-[#ededed] z-[80] flex flex-col pt-[env(safe-area-inset-top,0px)]"
       style={chatWallpaper ? { backgroundImage: `url(${chatWallpaper})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
     >
 
@@ -4880,7 +4880,7 @@ const FriendProfileScreen = ({ friend, onBack, onSendMessage, onClearChat }: { f
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="absolute inset-0 bg-[#f7f7f7] z-[70] flex flex-col pt-4"
+      className="absolute inset-0 bg-[#f7f7f7] z-[70] flex flex-col pt-[env(safe-area-inset-top,0px)]"
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 shrink-0 bg-[#ededed] border-b border-gray-200/50">
@@ -5106,10 +5106,10 @@ const WechatScreen = ({
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96, y: 15 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="absolute inset-0 bg-[#fefefe] z-[60] flex flex-col pt-4"
+      className="absolute inset-0 bg-[#fefefe] z-[60] flex flex-col pt-[env(safe-area-inset-top,0px)]"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 shrink-0 mt-2 border-b border-gray-100 bg-[#fefefe] relative z-20">
+      <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-gray-100 bg-[#fefefe] relative z-20">
         <button onClick={() => showNewFriends ? setShowNewFriends(false) : onBack()} className="p-2 -ml-2 text-gray-800 active:bg-gray-100 rounded-full transition-colors z-10">
           <ChevronLeft size={24} strokeWidth={2} />
         </button>
@@ -5626,7 +5626,7 @@ const WechatScreen = ({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: '100%' }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute inset-0 bg-[#f7f7f7] z-[120] flex flex-col pt-4"
+            className="absolute inset-0 bg-[#f7f7f7] z-[120] flex flex-col pt-[env(safe-area-inset-top,0px)]"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 shrink-0 bg-white shadow-sm relative z-20">

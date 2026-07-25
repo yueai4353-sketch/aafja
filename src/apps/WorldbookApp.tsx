@@ -188,7 +188,7 @@ export const WorldbookApp = ({ onBack, key }: { onBack: () => void, key?: React.
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96, y: 15 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="absolute inset-0 bg-[#FAFAFA] z-[60] flex flex-col pt-4"
+      className="absolute inset-0 bg-[#FAFAFA] z-[60] flex flex-col pt-[env(safe-area-inset-top,0px)]"
     >
       {currentView === 'list' && (
         <>

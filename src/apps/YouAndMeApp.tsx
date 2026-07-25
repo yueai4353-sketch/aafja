@@ -284,10 +284,10 @@ export const YouAndMeApp: React.FC<YouAndMeAppProps> = ({ onClose, personas = []
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
-      className="absolute inset-0 z-50 bg-[#ffd4d4] flex flex-col font-sans overflow-hidden"
+      className="absolute inset-0 z-50 bg-[#ffd4d4] flex flex-col font-sans overflow-hidden pt-[env(safe-area-inset-top,0px)]"
     >
       {/* 顶部导航 */}
-      <div className="flex items-center justify-between px-3 pt-6 pb-2 bg-white/20 backdrop-blur-sm z-10">
+      <div className="flex items-center justify-between px-3 pt-2 pb-2 bg-white/20 backdrop-blur-sm z-10">
         <div className="flex gap-2">
           <button onClick={onClose} className="w-8 h-8 sm:w-10 sm:h-10 bg-white rounded-lg flex items-center justify-center text-[#ff9e9e] shadow-sm">
              <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
