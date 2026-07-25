@@ -172,6 +172,42 @@ export const IconFeatureIntro = () => (
   </svg>
 );
 
+export const IconWanhuaji = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.2"/>
+    <path d="M12 3C12 3 15 8 15 12C15 16 12 21 12 21" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    <path d="M12 3C12 3 9 8 9 12C9 16 12 21 12 21" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    <path d="M4 9.5H20M4 14.5H20" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    <circle cx="12" cy="12" r="2" fill="currentColor" fillOpacity="0.3"/>
+  </svg>
+);
+
+export const IconWeibo = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M10.5 18.5C14.6421 18.5 18 16.433 18 13.875C18 11.317 14.6421 9.25 10.5 9.25C6.35786 9.25 3 11.317 3 13.875C3 16.433 6.35786 18.5 10.5 18.5Z" stroke="currentColor" strokeWidth="1.2"/>
+    <path d="M17 8.5C17 8.5 18.5 7 20 7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    <path d="M18 5.5C18 5.5 20 4 22 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    <circle cx="9" cy="14" r="1.2" fill="currentColor"/>
+    <circle cx="12.5" cy="13.5" r="1" fill="currentColor"/>
+  </svg>
+);
+
+export const IconX = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" strokeWidth="1.2"/>
+    <path d="M7 7L12 12M12 12L17 17M12 12L17 7M12 12L7 17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+export const IconTaobao = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 8L12 4L20 8V16L12 20L4 16V8Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+    <path d="M4 8L12 12L20 8" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+    <path d="M12 12V20" stroke="currentColor" strokeWidth="1.2"/>
+    <circle cx="12" cy="12" r="2" fill="currentColor" fillOpacity="0.3"/>
+  </svg>
+);
+
 export const IconPeriod = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M12 4 C15 7, 20 11, 20 15 C20 19, 16 22, 12 22 C8 22, 4 19, 4 15 C4 11, 9 7, 12 4 Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>

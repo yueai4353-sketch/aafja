@@ -3,18 +3,14 @@ import { loadPlotMemories, loadAboutYouEntries, loadMySchedule, loadOtherSchedul
 import { buildAssetContext } from './assetContext';
 
 /**
- * 构建完整的 AI 对话上下文（供微信消息和视频通话共用）
- * 统一构建完整 AI 对话上下文，包含微信聊天、视频通话功能共用的外壳、内核及天气信息等。
- * 
- * @param persona AI人设配置对象
- * @param contactId 联系人唯一标识
- * @param recentMessages 可选，最近的对话消息数组，用于世界书条目模式的关键词匹配
- * @returns 返回包含多字段的结构化上下文集合，如果未传入 persona 均直接返回 null
+ * 梦人间 IF 线专用上下文构建
+ * 与微信聊天的 buildFullAIContext 结构完全一致（消息格式、本轮分离、线上线下两态），
+ * 唯一区别是人设身份读取来源不同：使用入梦设定（dreamIdentity / worldview / userIdentity）
+ * 作为最高优先级身份覆盖。最终调用 buildAutoOfflineSystemPromptV2 生成提示词。
  */
-export async function buildFullAIContext(persona: any, contactId: string, myProfile: any = {}, recentMessages: any[] = []) {
+export async function buildMengrenjianAIContext(persona: any, contactId: string, myProfile: any = {}, recentMessages: any[] = []) {
     if (!persona) return null;
-    
-    // 初始化上下文集合对象
+
     const result = {
         aiPersonaInfo: '',
         userPersonaInfo: '',
@@ -25,20 +21,17 @@ export async function buildFullAIContext(persona: any, contactId: string, myProf
         relationshipContext: '',
         socialNetworkContent: ''
     };
-    
-    // === 1. 构建 AI 人设信息 ===
+
     const ai = persona;
-    
-    // 拼接【微信外壳信息】：读取昵称、微信号、个性签名
+
+    // === 1. 构建 AI 人设信息（基底 + 入梦设定覆盖身份） ===
     const aiWechatInfo = `\n【你的微信外壳信息】
 微信昵称：${ai.wechatName || ai.name}
 微信号：${ai.wechatId || '未设置'}
 个性签名：${ai.signature || '未设置'}`;
 
-    // 区分人设模式，输出AI内核信息
     let aiCoreInfo = '';
     if (ai.mode === 'detailed') {
-        // 模式为 detailed：输出完整内核信息（姓名、性别、年龄、性格、经历、关系等全套字段）
         aiCoreInfo = `\n【你的真实内核信息】
 真实姓名：${ai.name}
 性别：${ai.gender || '未知'}
@@ -53,30 +46,42 @@ export async function buildFullAIContext(persona: any, contactId: string, myProf
 与对方的关系：${ai.relationship || '未设定'}
 ${ai.nsfw_info ? 'NSFW相关：' + ai.nsfw_info : ''}`;
     } else {
-        // 普通模式：仅输出姓名+精简人设描述
         aiCoreInfo = `\n【你的真实内核信息】
 真实姓名：${ai.name}
 人设描述：${ai.bio || ''}`;
     }
-    
-    // 位置&天气分支逻辑：读取本地数据库 AppDB.appSettings，获取用户城市、AI天气预报数据
+
+    // === 入梦设定注入（IF线核心 — 覆盖身份与世界观） ===
+    let dreamProfileInfo = '';
+    try {
+        const dreamProfileRaw = localStorage.getItem(`dream_profile_${contactId}`);
+        if (dreamProfileRaw) {
+            const dreamProfile = JSON.parse(dreamProfileRaw);
+            if (dreamProfile.dreamIdentity || dreamProfile.worldview || dreamProfile.userIdentity) {
+                dreamProfileInfo = `\n【入梦设定 — IF线身份与世界观（以此为准，覆盖原设定中的身份/关系/世界观）】
+${dreamProfile.dreamIdentity ? '你在此世界线中的身份：' + dreamProfile.dreamIdentity : '身份：未设定（请按原设定）'}
+${dreamProfile.worldview ? '世界观背景：' + dreamProfile.worldview : '世界观：未设定（请按原设定）'}
+${dreamProfile.userIdentity ? '与你对话的人在此世界线中的身份：' + dreamProfile.userIdentity : '对方身份：未设定'}
+⚠️ 这是IF线（平行世界线），上述身份和世界观优先级最高，你需要完全代入此设定来扮演。性格、外观、沟通风格等仍参考角色基底信息。`;
+            }
+        }
+    } catch (e) {}
+
+    // 位置&天气
     let aiLocationInfo = '';
     let aiWeatherInfo = '';
     const userCityRecord = await AppDB.appSettings.get('my_city');
     const userCity = userCityRecord?.value || '';
     const aiRegion = (ai.region || '').trim();
     const aiDistance = ai.distance || '';
-    
-    // 判断用户城市是否有效配置
+
     if (userCity && userCity !== '---' && userCity !== '未设置' && userCity.trim() !== '') {
-        // 同城：共用同一套天气数据，解析天气JSON并拼接今日/明日天气
         if (!aiRegion || aiRegion === '' || aiRegion === userCity) {
             aiLocationInfo = `\n【你的位置信息】\n你当前所在城市：${userCity}（与对方同城）`;
             const weatherForecastRecord = await AppDB.appSettings.get('weather_ai_forecast');
             const weatherForecastStr = weatherForecastRecord?.value || null;
             if (weatherForecastStr) {
                 try {
-                    // 天气解析增加 try/catch 异常捕获
                     const weatherForecast = JSON.parse(weatherForecastStr);
                     if (weatherForecast && weatherForecast.length > 0) {
                         const today = weatherForecast[0];
@@ -87,12 +92,10 @@ ${ai.nsfw_info ? 'NSFW相关：' + ai.nsfw_info : ''}`;
                         }
                     }
                 } catch (e) {
-                    // 解析失败打印警告日志
                     console.warn('解析天气数据失败:', e);
                 }
             }
         } else {
-            // 异地：分别描述双方城市，提示AI区分两地气候，不共用天气
             aiLocationInfo = `\n【你的位置信息】\n你当前所在城市：${aiRegion}`;
             if (aiDistance) {
                 aiLocationInfo += `\n你的位置关系：${aiDistance}（这里的"我"指的是对方，也就是说这是你相对于对方所在的${userCity}的位置关系）`;
@@ -103,16 +106,13 @@ ${ai.nsfw_info ? 'NSFW相关：' + ai.nsfw_info : ''}`;
         }
     }
 
-    // === 2. 构建 用户（我）的人设信息 ===
+    // === 2. 构建用户人设信息 ===
     const userWechatInfo = `\n【与你聊天的用户的微信显示信息】
 微信昵称：${myProfile.name || '未设置'}
 微信号：${myProfile.wechat_id || '未设置'}
 个性签名：${myProfile.signature || '未设置'}`;
 
-    let userCoreInfo = '';
-    
-    // 模式为 detailed: 输出完整内核信息
-    userCoreInfo = `\n【与你聊天的用户的真实人设档案（绝对不要把对方当成你自己）】
+    const userCoreInfo = `\n【与你聊天的用户的真实人设档案（绝对不要把对方当成你自己）】
 真实姓名：${myProfile.real_name || myProfile.name || '未告知'}
 性别：${myProfile.gender || '未知'}
 年龄：${myProfile.age || '未知'}
@@ -133,7 +133,6 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
         const savedBooks = localStorage.getItem('os_worldbooks');
         if (savedBooks) {
             let books = JSON.parse(savedBooks);
-            
             if (persona.linked_worldbooks && Array.isArray(persona.linked_worldbooks)) {
                 if (persona.linked_worldbooks.length > 0) {
                     books = books.filter((wb: any) => persona.linked_worldbooks.includes(wb.id));
@@ -147,23 +146,16 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
                     books = [];
                 }
             }
-
             const recentTexts = recentMessages.filter(m => m.text).map(m => m.text.toLowerCase()).join(' ');
-            
             books.forEach((wb: any) => {
                 if (wb.editMode === 'simple') {
-                     // 简单模式：内容始终注入AI (不论是否有 recentMessages)
-                     if (wb.content && wb.content.trim()) {
-                         worldbookResult += `\n[${wb.name}]: ${wb.content}`;
-                     }
+                    if (wb.content && wb.content.trim()) {
+                        worldbookResult += `\n[${wb.name}]: ${wb.content}`;
+                    }
                 } else if (wb.entries && wb.entries.length > 0) {
-                    // 条目模式：必须有最近的聊天记录才触发关键词匹配
                     if (recentMessages.length > 0) {
                         wb.entries.forEach((entry: any) => {
-                            // 支持中英文逗号分割
                             const keys = entry.keys.split(/[,，]/).map((k: string) => k.trim().toLowerCase()).filter((k: string) => k);
-                            // 如果 entry.keys 为空，则相当于无条件触发？通常我们需要给一个机制，不过这里按照包含判断
-                            // 如果用户留空了 key，这里处理为不触发
                             if (keys.length > 0 && keys.some((k: string) => recentTexts.includes(k))) {
                                 worldbookResult += `\n[${wb.name}] - ${entry.keys}: ${entry.content}`;
                             }
@@ -173,41 +165,29 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
             });
         }
     } catch (e) {
-        console.warn('读取世界书失败:', e);
+        console.warn('[梦人间] 读取世界书失败:', e);
     }
-    
     if (worldbookResult) {
         result.worldbookContent = `\n【相关世界书知识库】此部分代表背景知识：\n${worldbookResult}`;
     }
 
     // === 4. 读取记忆海内容 ===
-    // 获取最近用户消息文本，用于判断是否需要选择性读取"了解你"中的相关条目
     const recentUserTexts = recentMessages
         .filter(m => m.isMe && m.text && m.msgType !== 'system' && m.msgType !== 'narrator')
         .map(m => m.text.toLowerCase())
         .join(' ');
 
-    // 4-1. 核心记忆（情节记忆中 importance >= 8 的条目，视为核心记忆）—— 必须读取
     const allPlotMemories = loadPlotMemories();
     const coreMemories = allPlotMemories.filter(m => Number(m.importance) >= 8);
-
-    // 4-2. 清洁记忆（最近的情节记忆，importance < 8，代表普通记忆摘要）—— 必须读取，取最近 10 条
-    const cleanMemories = allPlotMemories
-        .filter(m => Number(m.importance) < 8)
-        .slice(-10);
-
-    // 4-3. 了解你（aboutYouEntries）—— 全量读取，根据当前对话内容选择性注入相关条目
+    const cleanMemories = allPlotMemories.filter(m => Number(m.importance) < 8).slice(-10);
     const allAboutYou = loadAboutYouEntries();
 
-    // 选择性过滤：如果用户消息中出现了某个条目的 key，则该条目更需要被注入
     const relevantAboutYou = allAboutYou.filter(entry => {
         if (!entry.key || !entry.value) return false;
-        // 优先注入与当前话题相关的条目（key 或 value 关键词出现在最近对话中）
         const keyLower = entry.key.toLowerCase();
         const valueLower = entry.value.toLowerCase();
         return recentUserTexts.includes(keyLower) || recentUserTexts.includes(valueLower);
     });
-    // 非相关条目也保留（全量注入），但放在相关条目后面
     const otherAboutYou = allAboutYou.filter(entry => {
         if (!entry.key || !entry.value) return false;
         const keyLower = entry.key.toLowerCase();
@@ -215,76 +195,64 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
         return !recentUserTexts.includes(keyLower) && !recentUserTexts.includes(valueLower);
     });
 
-    // 拼装记忆海内容
     let memorySeaContent = '';
-
     if (coreMemories.length > 0) {
         const coreLines = coreMemories
             .map(m => `· [${m.date}][${m.theme}][重要度:${m.importance}] ${m.content}${m.emotion ? `（${m.emotion}）` : ''}`)
             .join('\n');
         memorySeaContent += `【核心记忆】这些是你们之间最重要的记忆，必须牢记：\n${coreLines}\n`;
     }
-
     if (cleanMemories.length > 0) {
         const cleanLines = cleanMemories
             .map(m => `· [${m.date}][${m.theme}] ${m.content}${m.emotion ? `（${m.emotion}）` : ''}`)
             .join('\n');
         memorySeaContent += `\n【近期记忆】近期发生的一些事情：\n${cleanLines}\n`;
     }
-
     if (relevantAboutYou.length > 0) {
         const relevantLines = relevantAboutYou
             .map(e => `· [${e.category}][关于${e.target}] ${e.key}：${e.value}`)
             .join('\n');
         memorySeaContent += `\n【了解你（与本次话题相关）】当前对话涉及以下你掌握的信息，请优先参考：\n${relevantLines}\n`;
     }
-
     if (otherAboutYou.length > 0) {
         const otherLines = otherAboutYou
             .map(e => `· [${e.category}][关于${e.target}] ${e.key}：${e.value}`)
             .join('\n');
         memorySeaContent += `\n【了解你（其他）】你还记得关于对方的这些事：\n${otherLines}\n`;
     }
-
     if (memorySeaContent) {
         result.memoryContent = `【记忆海】以下是你记忆中储存的内容，来自你与对方的相处历程：\n${memorySeaContent}`;
     }
 
-    // === 4-4. 智能资产上下文（仅在对话涉及资产时才读取，节省token） ===
+    // 智能资产上下文
     try {
         const assetContext = await buildAssetContext(contactId, persona, recentMessages);
         if (assetContext) {
             result.memoryContent += assetContext;
         }
     } catch (e) {
-        console.warn('[资产上下文] 构建失败:', e);
+        console.warn('[梦人间-资产上下文] 构建失败:', e);
     }
 
-
-    // 拼装完整系统提示词
-    const promptIntro = `【角色扮演最高指令】你现在正在进行一场沉浸式的角色扮演。请你完全忘掉自己是AI语言模型。你有着独立的思想、生活状态和真实的人性，你就是下面设定的这个角色！请认准“你的真实内核信息”，并和对面的“人类用户”进行交互，绝不可以把人类用户的人设当成你自己：\n`;
-    
+    // 拼装 AI 人设信息（含入梦设定）
+    const promptIntro = `【角色扮演最高指令 — 梦人间IF线】你现在正在进行一场沉浸式的IF线角色扮演。请你完全忘掉自己是AI语言模型。你有着独立的思想、生活状态和真实的人性，你就是下面设定的这个角色！\n`;
     const roleplayInstruction = `\n\n【扮演要求】
-1. 请完全沉浸在【你的真实内核信息】中，你的每一次回复都要符合你的人设性格、成长经历和身份背景。
-2. 结合你所处的地理位置和天气信息，你可以自然地在对话中表现出感知。
-3. 严格遵循你与对方设定的“关系”及“沟通风格”，绝不跳脱角色。绝对不要把【与你聊天的用户】的信息当成你自己的信息。`;
+1. 完全沉浸在IF线设定中，你的身份是"入梦设定"里指定的身份，世界观以入梦设定为准。
+2. 性格、外观、沟通风格等参考角色基底信息，但身份和关系以入梦设定优先。
+3. 绝不跳脱角色，绝不把用户的信息当成自己的信息。
+4. 回复要符合IF线世界观的逻辑和氛围。`;
 
-    result.aiPersonaInfo = promptIntro + aiWechatInfo + aiCoreInfo + aiLocationInfo + aiWeatherInfo + result.worldbookContent + roleplayInstruction;
+    result.aiPersonaInfo = promptIntro + aiWechatInfo + aiCoreInfo + dreamProfileInfo + aiLocationInfo + aiWeatherInfo + result.worldbookContent + roleplayInstruction;
 
+    // === 5. 读取设置 ===
     const settingsRec = await AppDB.appSettings.get(`chat_settings_${contactId}`);
-    const useV2 = settingsRec && settingsRec.value && settingsRec.value.useV2Prompt;
-    
-    // Retrieve new offline settings
-    const autoOfflineMode = settingsRec?.value?.autoOfflineMode || false;
-    const autoSwitchPhoneMode = settingsRec?.value?.autoSwitchPhoneMode || false;
     const aiPov = settingsRec?.value?.aiPov || 'third';
     const userPov = settingsRec?.value?.userPov || 'second';
     const customStyle = settingsRec?.value?.contentStyle || '';
-    const forceMindCard = settingsRec?.value?.showMindCard || false;
-    // 读取"停用时间感知"开关
+    const forceMindCard = settingsRec?.value?.showMindCard !== false;
     const disableTimeAwareness = settingsRec?.value?.disableTimeAwareness || false;
 
-    // 检测当前是否处于线下模式：从最近的消息中查找 [LOCATION:] 标记
+    // === 6. 检测线下模式 ===
     let currentMode: 'online' | 'offline' = 'online';
     let currentOfflineLocation = '某处';
     for (let i = recentMessages.length - 1; i >= 0; i--) {
@@ -300,30 +268,23 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
         }
     }
 
-    // === 5. 智能日程读取（基于关键词触发） ===
+    // === 7. 智能日程读取 ===
     let scheduleContext = '';
-    // 判断是否需要读取日程：根据最近消息中的关键词
     if (shouldLoadSchedule(recentMessages)) {
-        const moonPhase = loadMoonPhase(); // 'full' 圆月 | 'crescent' 残月
-        
-        // AI自己的日程（对方日程）：总是读取
+        const moonPhase = loadMoonPhase();
         const aiSchedule = loadOtherSchedule();
         if (aiSchedule.length > 0) {
-            const aiScheduleText = scheduleItemsToText(aiSchedule);
-            scheduleContext += `【你的日程安排】\n${aiScheduleText}\n`;
+            scheduleContext += `【你的日程安排】\n${scheduleItemsToText(aiSchedule)}\n`;
         }
-        
-        // 用户日程（我的日程）：仅在圆月状态下读取
         if (moonPhase === 'full') {
             const userSchedule = loadMySchedule();
             if (userSchedule.length > 0) {
-                const userScheduleText = scheduleItemsToText(userSchedule);
-                scheduleContext += `\n【对方的日程安排】\n${userScheduleText}\n`;
+                scheduleContext += `\n【对方的日程安排】\n${scheduleItemsToText(userSchedule)}\n`;
             }
         }
     }
 
-    // === 5-2. 智能手机密码读取（基于关键词触发） ===
+    // === 8. 手机密码上下文 ===
     let phonePasswordContext = '';
     const phonePasswordKeywords = ['手机密码', '解锁密码', '锁屏密码', '手机锁', '密码是什么', '密码是多少', '手机解锁', '开机密码'];
     const recentTextsForPhone = recentMessages.slice(-6).map((m: any) => (m.text || '').toLowerCase()).join(' ');
@@ -339,85 +300,66 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
                 }
             }
         } catch (e) {
-            console.warn('[手机密码上下文] 读取失败:', e);
+            console.warn('[梦人间-手机密码上下文] 读取失败:', e);
         }
     }
 
-    let prompt = '';
-    
-    // 收集聊天记录中用户发送的图片 base64（用于多模态 Vision 请求）
+    // === 9. 消息格式化（与微信完全一致） ===
     const imageMessages: string[] = [];
-
-    // 记录已被表情包合并消费的系统消息索引，避免重复输出
     const consumedIndexes = new Set<number>();
 
-    // 格式化消息为文本行（支持索引，用于向后查找紧随的系统识图消息）
     const formatOneMsg = (msg: any, index: number): string => {
-        // 如果该消息已被前面的表情包合并消费，跳过
         if (consumedIndexes.has(index)) return '';
 
         if (msg.msgType === 'system' || msg.msgType === 'narrator') {
             if (msg.text === '你撤回了一条消息' && msg.recalledContent) {
-                 const secondsMatch = msg.recalledContent.match(/\[SECONDS:(\d+)\]$/);
-                 const seconds = secondsMatch ? secondsMatch[1] : '0';
-                 const actualContent = msg.recalledContent.replace(/\[SECONDS:\d+\]$/, '');
-                 return `[撤回: 原内容:"${actualContent}", 撤回了${seconds}秒, 和你当时的活跃状态:活跃]`;
+                const secondsMatch = msg.recalledContent.match(/\[SECONDS:(\d+)\]$/);
+                const seconds = secondsMatch ? secondsMatch[1] : '0';
+                const actualContent = msg.recalledContent.replace(/\[SECONDS:\d+\]$/, '');
+                return `[撤回: 原内容:"${actualContent}", 撤回了${seconds}秒, 和你当时的活跃状态:活跃]`;
             }
             if (msg.isSystem) return `【系统/旁白】${msg.text}`;
             return `【系统/旁白】${msg.text}`;
         }
-        // 图片消息：文本历史中标记为 [图片]，base64 数据通过 imageMessages 单独传递给 Vision
+
         const text = msg.text || '';
         if (msg.msgType === 'image' || text.startsWith('data:image')) {
-            // 收集图片 base64 数据（仅保留用户发送的图片用于 Vision 识别）
             if (msg.isMe) {
                 const imgBase64 = text.startsWith('data:image') ? text : (msg.imageData || '');
-                if (imgBase64) {
-                    imageMessages.push(imgBase64);
-                }
+                if (imgBase64) imageMessages.push(imgBase64);
             }
             return `${msg.isMe ? myProfile?.name || '我' : persona.name}: [图片]`;
         }
-        // 表情包/图片消息：text 格式为 [image:url]、[image:描述] 或 [sticker:url]
+
         const stickerMatch = text.match(/^\[image:([\s\S]+)\]$/) || text.match(/^\[sticker:([\s\S]+)\]$/);
         if (stickerMatch) {
             let desc = stickerMatch[1].trim();
-            // 支持 [sticker:url|label] 格式：提取 label 用于 AI 上下文
             const pipeIdx = desc.indexOf('|');
             if (pipeIdx > 0 && /^(https?:\/\/|data:)/.test(desc)) {
                 desc = desc.substring(pipeIdx + 1).trim();
             }
             const isUrl = desc.startsWith('http://') || desc.startsWith('https://') || desc.startsWith('data:');
             if (isUrl) {
-                // URL 类型表情包：向后查找紧随的系统识图消息，提取描述
                 const nextMsg = recentMessages[index + 1];
                 if (nextMsg && (nextMsg.msgType === 'system' || nextMsg.isSystem)) {
                     const nextText = nextMsg.text || '';
-                    // 匹配格式：[用户发送了一张表情包，AI识图结果：xxx]
                     const descMatch = nextText.match(/\[用户发送了一张表情包，AI识图结果：([\s\S]+)\]/);
                     if (descMatch) {
-                        // 标记该系统消息已被消费
                         consumedIndexes.add(index + 1);
-                        // 提取表情包含义（优先从【表情包含义】字段获取简洁描述）
                         const meaningMatch = descMatch[1].match(/【表情包含义】[:：]\s*([\s\S]+?)$/);
                         const stickerMeaning = meaningMatch ? meaningMatch[1].trim() : descMatch[1].trim();
                         return `${msg.isMe ? myProfile?.name || '我' : persona.name}: [表情包]：${stickerMeaning}`;
                     }
-                    // 匹配简短格式：[用户发送了一张表情包]（识图失败情况）
                     if (nextText.includes('[用户发送了一张表情包]')) {
                         consumedIndexes.add(index + 1);
                     }
                 }
                 return `${msg.isMe ? myProfile?.name || '我' : persona.name}: [表情包]`;
             }
-            // 非 URL 的描述文本：将描述内容传递给 AI，让 AI 能理解这张图片的具体内容
             return `${msg.isMe ? myProfile?.name || '我' : persona.name}: [图片]：${desc}`;
         }
-        
-        // 基础消息文本
-        let result = `${msg.isMe ? myProfile?.name || '我' : persona.name}: ${text}`;
-        
-        // 如果是 AI 的消息且有 mindCard 数据，将心声内容也附加到聊天历史中
+
+        let line = `${msg.isMe ? myProfile?.name || '我' : persona.name}: ${text}`;
         if (!msg.isMe && msg.mindCard) {
             const mc = msg.mindCard;
             const mindParts: string[] = [];
@@ -426,14 +368,13 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
             if (mc.thought) mindParts.push(`心思:${mc.thought}`);
             if (mc.dark_side) mindParts.push(`阴暗面:${mc.dark_side}`);
             if (mindParts.length > 0) {
-                result += `\n[AI心声: ${mindParts.join(' | ')}]`;
+                line += `\n[AI心声: ${mindParts.join(' | ')}]`;
             }
         }
-        
-        return result;
+        return line;
     };
 
-    // 找到用户本轮发送的所有消息：从最后一条AI回复之后开始，到末尾的所有用户消息
+    // === 10. 本轮消息分离（与微信完全一致） ===
     const lastAiReplyIdx = (() => {
         for (let i = recentMessages.length - 1; i >= 0; i--) {
             const m = recentMessages[i];
@@ -444,9 +385,7 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
         return -1;
     })();
 
-    // 本轮起始位置：最后一条AI回复之后的第一条消息
     const currentTurnStart = lastAiReplyIdx >= 0 ? lastAiReplyIdx + 1 : 0;
-    // 收集本轮用户发送的所有消息索引（包括旁白等，只要是 isMe 的非系统消息）
     const currentTurnMsgIndexes: number[] = [];
     for (let i = currentTurnStart; i < recentMessages.length; i++) {
         const m = recentMessages[i];
@@ -455,14 +394,12 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
         }
     }
 
-    // 生成历史文本（本轮消息之前的部分）
     const historyLines = recentMessages
         .slice(0, currentTurnStart)
         .map((m, i) => formatOneMsg(m, i))
         .filter(line => line !== '')
         .join('\n');
 
-    // 本轮用户发送的所有消息，放到末尾并加权重提示
     let currentTurnLines = '';
     if (currentTurnMsgIndexes.length > 0) {
         const lines = currentTurnMsgIndexes
@@ -473,21 +410,17 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
     }
 
     const formattedHistory = historyLines + currentTurnLines;
-    // 根据"停用时间感知"开关决定 timeContext 内容
+
+    // === 11. 时间上下文 ===
     let timeContextValue: string;
     if (disableTimeAwareness) {
-        // 开关开启：不注入真实时间，告知 AI 根据上下文推算时间线
-        timeContextValue = result.timeContext || `【时间感知说明】请忽略现实中的真实系统时间，不要依赖任何外部时钟。请根据聊天记录中的上下文、事件发展和对话内容来推算当前所处的时间线。\n`;
+        timeContextValue = `【时间感知说明】请忽略现实中的真实系统时间，不要依赖任何外部时钟。请根据聊天记录中的上下文、事件发展和对话内容来推算当前所处的时间线。\n`;
     } else {
-        // 开关关闭（默认）：根据 AI 所在时区读取时间
         const aiTimezone = settingsRec?.value?.aiTimezone || '跟随用户';
         let nowTime: string;
-        
         if (aiTimezone === '跟随用户') {
-            // 跟随用户：使用用户所在时区（默认 Asia/Shanghai）
             nowTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
         } else {
-            // 使用 AI 设定的时区
             try {
                 nowTime = new Date().toLocaleString('zh-CN', { timeZone: aiTimezone });
             } catch (e) {
@@ -495,113 +428,43 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
                 nowTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
             }
         }
-        
-        timeContextValue = result.timeContext || `【系统当前时间】${nowTime}\n`;
+        timeContextValue = `【系统当前时间】${nowTime}\n`;
     }
 
-    if (useV2) {
-        // 内部已经有一个独立导出的 buildAutoOfflineSystemPromptV2，我们直接调用它，而不是再声明一次
-        prompt = buildAutoOfflineSystemPromptV2({
-            aiName: persona.name,
-            wechatNickname: persona.wechat_remark || persona.name,
-            aiPersona: result.aiPersonaInfo,
-            userPersona: result.userPersonaInfo,
-            relationship: result.relationshipInfo,
-            socialNetwork: result.socialNetworkContent,
-            worldbookContent: result.worldbookContent,
-            memoryContent: result.memoryContent,
-            letterContext: `\n【最近聊天记录】\n${formattedHistory}\n`,
-            timeContext: timeContextValue,
-            scheduleContext: scheduleContext,
-            phonePasswordContext: phonePasswordContext,
-            userGender: myProfile?.gender || '',
-            aiPov: aiPov,
-            userPov: userPov,
-            customStyle: customStyle,
-            forceMindCard: forceMindCard,
-            currentMode: currentMode,
-            location: currentOfflineLocation,
-            contactId: contactId,
-        }, persona);
-    } else {
-        prompt = "";
-    }
-    
+    // === 12. 调用梦人间专用 V2 提示词生成 ===
+    const prompt = buildMengrenjianPromptV2({
+        aiName: persona.name,
+        wechatNickname: persona.wechat_remark || persona.name,
+        aiPersona: result.aiPersonaInfo,
+        userPersona: result.userPersonaInfo,
+        relationship: result.relationshipInfo,
+        socialNetwork: result.socialNetworkContent,
+        worldbookContent: result.worldbookContent,
+        memoryContent: result.memoryContent,
+        letterContext: `\n【最近聊天记录】\n${formattedHistory}\n`,
+        timeContext: timeContextValue,
+        scheduleContext: scheduleContext,
+        phonePasswordContext: phonePasswordContext,
+        userGender: myProfile?.gender || '',
+        aiPov: aiPov,
+        userPov: userPov,
+        customStyle: customStyle,
+        forceMindCard: forceMindCard,
+        currentMode: currentMode,
+        location: currentOfflineLocation,
+        contactId: contactId,
+    }, persona);
+
     (result as any).prompt = prompt;
     (result as any).imageMessages = imageMessages;
     return result;
 }
 
 /**
- * 构建电话通话专用提示词
- * 使用「」格式，旁白只写声音/语气，支持 [ACTION:HANG_UP] 挂断信号
- */
-export function buildPhoneCallPrompt(data: any, currentPersona: any = null) {
-    data = data || {};
-
-    const aiName = data.aiName || (currentPersona?.name || '');
-    const wechatNickname = data.wechatNickname || aiName;
-    const aiPersona = data.aiPersona || '';
-    const userPersona = data.userPersona || '';
-    const relationship = data.relationship || '';
-    const socialNetwork = data.socialNetwork || '';
-    const worldbookContent = data.worldbookContent || '';
-    const worldbookForceContent = data.worldbookForceContent || '';
-    const memoryContent = data.memoryContent || '';
-    const letterContext = data.letterContext || '';
-    const groupSyncContext = data.groupSyncContext || '';
-    const fpContext = data.fpContext || '';
-    const timeContext = data.timeContext || '';
-    const mindCardContext = data.mindCardContext || '';
-    const scheduleContext = data.scheduleContext || '';
-
-    const worldRealityBlock = worldbookForceContent ? `══════════ 【你所在世界的事实】══════════
-（这是你这世界的事实，无法违背；它们补强你，不替代你的个性。）
-${worldbookForceContent}
-═══════════════════════════════════════════════
-` : '';
-
-    // 日程 & 人设快照块（有数据才注入，节省 token）
-    const scheduleBlock = scheduleContext
-        ? `\n【近期日程安排】\n${scheduleContext}\n`
-        : '';
-
-    return `你是${aiName}，微信上叫"${wechatNickname}"。
-
-【你这个人】
-下面这些就是你。钻进去，吃透自己是谁，然后想什么、说什么、做什么，都从你自己来。
-你本来什么样就什么样——别给自己添没有的，也别把自己压平。
-${aiPersona}
-${relationship}
-
-【此刻的你】
-下面这些也都是你。
-${memoryContent ? '\n' + memoryContent : ''}
-${fpContext}${letterContext}${groupSyncContext || ''}
-${timeContext}
-${mindCardContext}
-${scheduleBlock}
-${worldRealityBlock}${worldbookContent ? '\n【你知道的事】\n' + worldbookContent + '\n' : ''}${socialNetwork ? '\n' + socialNetwork + '\n' : ''}
-【你面对的人】
-${userPersona}【当前场景】
-你正在和用户语音通话。这是一通电话，只有声音：你看不到对方，对方也看不到你，彼此只能听见声音。
-
-【输出格式】
-说出口的每一句话都必须整句用「」单独括住，哪怕只有一个字；「」之外一律是旁白，用第三人称（她/他）描述你自己；同一处不得把说的话和旁白混写。
-
-【旁白范围】
-电话里只能听见声音、看不见画面。旁白只写两类能被听见的内容：你那头的环境声响，以及你的声音与语气状态。其余一律不写。
-
-【要求】
-对话用「」包裹；旁白只写上述两类，第三人称，简短，自然穿插，不堆砌。想结束通话时在末尾单独加 [ACTION:HANG_UP]。语言口语、简短，贴合你的人设与当前状态。无「」的文字一律按旁白处理，故对话务必带「」。
-
-直接输出文本，不要 JSON。`;
-}
-
-/**
  * 构建自动线下模式 V2 融合提示词（soul 一份 + 双信封 + 对称场景判断；线上线下两态共用）
+ * 梦人间专用副本，与 aiContext.ts 中的版本结构一致
  */
-export function buildAutoOfflineSystemPromptV2(data: any, currentPersona: any = null) {
+function buildMengrenjianPromptV2(data: any, currentPersona: any = null) {
 
     data = data || {};
 
@@ -666,10 +529,6 @@ ${worldbookForceContent}
         ? `此刻你和 ta 在一起，在【${location}】。`
         : '此刻你和 ta 没碰面，在用微信聊。';
     const _isOffline = currentMode === 'offline';
-    // const spyFormat = (!_isOffline && typeof SpyRobotManager !== 'undefined')
-    //     ? SpyRobotManager.buildSpyOutputFormat(contactId) : '';
-    // const spySection = (!_isOffline && typeof SpyRobotManager !== 'undefined')
-    //     ? SpyRobotManager.buildSpyPromptSection(contactId) : '';
     const FORCE_MIND_CARD_ONLINE = `mind_card：对方看不到这块——这是你心里的不同部分。
 （attire/action/thought 都是"此刻"——上面如果有【间隔】，可能早不是上一刻的样子；没【间隔】就接上一刻。）
 - attire：此刻穿着。

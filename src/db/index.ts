@@ -27,15 +27,19 @@ export interface Memory {
 
 export class ChatDatabase extends Dexie {
   messages!: Table<ChatMessage>;
+  mengrenjianMessages!: Table<ChatMessage>;
   appSettings!: Table<AppSetting, string>;
   memories!: Table<Memory>;
 
   constructor() {
     super('WeChatSimulator');
-    this.version(3).stores({
+    this.version(4).stores({
       messages: '++id, contactId, fullTimestamp, [contactId+fullTimestamp]',
+      mengrenjianMessages: '++id, contactId, fullTimestamp, [contactId+fullTimestamp]',
       appSettings: 'key',
       memories: '++id, contactId, timestamp'
+    }).upgrade(tx => {
+      // version 4 adds mengrenjianMessages
     });
   }
 }

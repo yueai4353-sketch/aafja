@@ -9,10 +9,11 @@ import { CreatePersonaApp as CreatePersonaScreen } from './apps/CreatePersonaApp
 import { WorldbookApp as WorldbookScreen } from './apps/WorldbookApp';
 import { ThemeApp as ThemeScreen } from './apps/ThemeApp';
 import { buildFullAIContext, buildPhoneCallPrompt } from './utils/aiContext';
+import { buildMengrenjianAIContext } from './utils/mengrenjianContext';
 import { getWoKongSystemPrompt, tickProp, buildEntryNarration, getActiveRecord } from './utils/woKongManager';
 import './utils/xiaohongshuShare';
 import { loadMySchedule, loadOtherSchedule, loadPersonaSnapshot, scheduleItemsToText } from './db/youandme';
-import { BackgroundLines, IconWechat, IconCalendar, IconWeather, IconHuaji, IconWorldbook, IconDevice, IconCompanion, IconSettings, IconTheme, AppIcon, CurrentTime, SortableAppIcon, IconAccounting, IconSecret, IconMessage, IconPeriod, IconCangxu, IconMemories, IconYouAndMe, IconFeatureIntro, IconMengrenjian, ProfileCard } from './components';
+import { BackgroundLines, IconWechat, IconCalendar, IconWeather, IconHuaji, IconWorldbook, IconDevice, IconCompanion, IconSettings, IconTheme, AppIcon, CurrentTime, SortableAppIcon, IconAccounting, IconSecret, IconMessage, IconPeriod, IconCangxu, IconMemories, IconYouAndMe, IconFeatureIntro, IconMengrenjian, IconWanhuaji, IconWeibo, IconX, IconTaobao, ProfileCard } from './components';
 import { WeatherApp as WeatherScreen } from './apps/WeatherApp';
 import {
   DndContext,
@@ -89,6 +90,11 @@ import { YouAndMeApp as YouAndMeScreen } from './apps/YouAndMeApp';
 import { CangxuApp as CangxuScreen } from './apps/CangxuApp';
 import { CheckPhoneApp as CheckPhoneScreen } from './apps/CheckPhoneApp';
 import { FeatureIntroApp as FeatureIntroScreen } from './apps/FeatureIntroApp';
+import { WanhuajiApp as WanhuajiScreen } from './apps/WanhuajiApp';
+import { WeiboApp as WeiboScreen } from './apps/WeiboApp';
+import { XApp as XScreen } from './apps/XApp';
+import { TaobaoApp as TaobaoScreen } from './apps/TaobaoApp';
+import { MengrenjianApp as MengrenjianScreen } from './apps/MengrenjianApp';
 import { AboutModal } from './components/AboutModal';
 
 // 每次更新时修改此版本号，会触发弹窗重新显示
@@ -223,7 +229,8 @@ export default function App() {
     localStorage.setItem('os_about_seen_version', APP_VERSION);
   };
 
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook' | 'theme' | 'memory' | 'youandme' | 'weather' | 'cangxu' | 'check_phone' | 'feature_intro'>('home');
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'settings' | 'wechat' | 'huaji' | 'create_persona' | 'my_profile' | 'worldbook' | 'theme' | 'memory' | 'youandme' | 'weather' | 'cangxu' | 'check_phone' | 'feature_intro' | 'wanhuaji' | 'weibo' | 'x_app' | 'taobao' | 'mengrenjian'>('home');
+  const [profileSource, setProfileSource] = useState<'wechat' | 'mengrenjian'>('wechat');
   const [myProfile, setMyProfile] = useState<any>(() => {
     const defaultProfile = {};
     const saved = localStorage.getItem('os_my_profile');
@@ -249,6 +256,7 @@ export default function App() {
     return [];
   });
   const [wechatChats, setWechatChats] = useState<Record<string, any[]>>({});
+  const [mengrenjianChats, setMengrenjianChats] = useState<Record<string, any[]>>({});
   const [aiTypingStatus, setAiTypingStatus] = useState<Record<string, boolean>>({});
   const [personas, setPersonas] = useState<any[]>(() => {
     const saved = localStorage.getItem('os_personas');
@@ -293,7 +301,7 @@ export default function App() {
       { id: '5', iconKey: 'worldbook', label: '世界书', screen: 'worldbook' },
       { id: '6', iconKey: 'device', label: '查手机', screen: 'check_phone' },
       { id: '12', iconKey: 'feature_intro', label: '功能介绍', screen: 'feature_intro' },
-      { id: '13', iconKey: 'mengrenjian', label: '梦人间', screen: null },
+      { id: '13', iconKey: 'mengrenjian', label: '梦人间', screen: 'mengrenjian' },
     ];
     if (saved) {
       try {
@@ -322,17 +330,33 @@ export default function App() {
 
   const [desktopAppsPage2, setDesktopAppsPage2] = useState(() => {
     const saved = localStorage.getItem('os_desktop_apps_p2_v3');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return parsed.filter((a: any) => a.iconKey !== 'jice');
-      } catch (e) {}
-    }
-    return [
+    const defaultAppsP2 = [
       { id: '8', iconKey: 'secret', label: '偷偷', screen: null },
       { id: '7', iconKey: 'accounting', label: '记账', screen: null },
       { id: '9', iconKey: 'period', label: '经期记录', screen: null },
+      { id: '14', iconKey: 'wanhuaji', label: '万花集', screen: 'wanhuaji' },
+      { id: '15', iconKey: 'weibo', label: '微博', screen: 'weibo' },
+      { id: '16', iconKey: 'x_app', label: 'X', screen: 'x_app' },
+      { id: '17', iconKey: 'taobao', label: '淘宝', screen: 'taobao' },
     ];
+    if (saved) {
+      try {
+        let parsed = JSON.parse(saved);
+        parsed = parsed.filter((a: any) => a.iconKey !== 'jice');
+        // 补充缺失的新APP
+        defaultAppsP2.forEach(defApp => {
+          if (!parsed.find((a: any) => a.iconKey === defApp.iconKey)) {
+            parsed.push(defApp);
+          }
+        });
+        parsed = parsed.map((a: any) => {
+          const def = defaultAppsP2.find((d: any) => d.iconKey === a.iconKey);
+          return def ? { ...a, label: def.label, screen: def.screen } : a;
+        });
+        return parsed;
+      } catch (e) {}
+    }
+    return defaultAppsP2;
   });
 
   const [currentPage, setCurrentPage] = useState(0);
@@ -403,6 +427,10 @@ export default function App() {
     memories: <IconMemories />,
     feature_intro: <IconFeatureIntro />,
     mengrenjian: <IconMengrenjian />,
+    wanhuaji: <IconWanhuaji />,
+    weibo: <IconWeibo />,
+    x_app: <IconX />,
+    taobao: <IconTaobao />,
   };
 
   const handleAppClick = (screen: any) => {
@@ -481,6 +509,29 @@ export default function App() {
       });
       setWechatChats(chats);
     }).catch(err => console.error("Failed to load messages", err));
+
+    ChatDB.mengrenjianMessages.toArray().then(messages => {
+      const chats: Record<string, any[]> = {};
+      messages.forEach(msg => {
+        if (!chats[msg.contactId]) {
+          chats[msg.contactId] = [];
+        }
+        chats[msg.contactId].push({
+          id: msg.id,
+          text: msg.text,
+          isMe: msg.isMe,
+          timestamp: msg.fullTimestamp,
+          fullTimestamp: msg.fullTimestamp,
+          msgType: msg.msgType,
+          mindCard: msg.mindCard ?? null,
+          recalledContent: msg.recalledContent ?? null,
+        });
+      });
+      Object.keys(chats).forEach(contactId => {
+        chats[contactId].sort((a, b) => a.timestamp - b.timestamp);
+      });
+      setMengrenjianChats(chats);
+    }).catch(err => console.error("Failed to load mengrenjian messages", err));
   }, []);
 
   React.useEffect(() => {
@@ -499,10 +550,10 @@ export default function App() {
     setTimeout(() => setGlobalToast(''), 2500);
   };
 
-  const handleTriggerAI = async (friendId: string) => {
+  const handleTriggerAI = async (friendId: string, isMengrenjian: boolean = false) => {
     const friend = personas.find(p => p.id === friendId) || wechatFriends.find(f => f.id === friendId);
     if (!friend) return;
-    const msgs = wechatChats[friendId] || [];
+    const msgs = isMengrenjian ? (mengrenjianChats[friendId] || []) : (wechatChats[friendId] || []);
     
     const mandatoryMemSize = parseInt(localStorage.getItem('os_api_mandatory_mem') || '10', 10);
     const contextMemSize = Math.max(mandatoryMemSize, parseInt(localStorage.getItem('os_api_context_mem') || '50', 10));
@@ -560,7 +611,10 @@ export default function App() {
     const dialogueMsgs = msgs.filter(m => !(m.msgType === 'system' && phoneCallSystemTexts.includes(m.text)));
     recentMessages.push(...dialogueMsgs.slice(-mandatoryMemSize));
     
-    const context = await buildFullAIContext(friend, friendId, myProfile, recentMessages);
+    // 梦人间使用专用提示词，微信使用通用提示词
+    const context = isMengrenjian 
+      ? await buildMengrenjianAIContext(friend, friendId, myProfile, recentMessages)
+      : await buildFullAIContext(friend, friendId, myProfile, recentMessages);
     if (!context || !(context as any).prompt) {
         showGlobalToast('未生成有效的提示词');
         return;
@@ -575,6 +629,8 @@ export default function App() {
         if (settingsRec.value.useCoT) useCoT = true;
         if (settingsRec.value.cotStyle) cotStyle = settingsRec.value.cotStyle;
     }
+    // 梦人间始终使用 V2 JSON 格式输出
+    if (isMengrenjian) useV2 = true;
 
     // 检测是否处于语音通话场景：最近 contextMemSize 条里有 PHONE_CALL_START 或 PHONE_CALL_HEART，
     // 且在那之后没有出现 PHONE_CALL_END（挂断后不应再视为通话中）
@@ -1215,24 +1271,43 @@ export default function App() {
                 if (msg.mindCard) {
                     msgObj.mindCard = msg.mindCard;
                 }
-                const newId = await ChatDB.messages.add(msgObj);
+                const newId = isMengrenjian ? await ChatDB.mengrenjianMessages.add(msgObj) : await ChatDB.messages.add(msgObj);
                 
-                setWechatChats(prev => {
-                    const existing = prev[friendId] || [];
-                    const stateMsg: any = { 
-                        id: newId as number, 
-                        text: msg.text, 
-                        isMe: false, 
-                        timestamp: ts,
-                        fullTimestamp: ts,
-                        msgType: msg.msgType 
-                    };
-                    if (msg.mindCard) stateMsg.mindCard = msg.mindCard;
-                    return { 
-                        ...prev, 
-                        [friendId]: [...existing, stateMsg] 
-                    };
-                });
+                if (isMengrenjian) {
+                  setMengrenjianChats(prev => {
+                      const existing = prev[friendId] || [];
+                      const stateMsg: any = { 
+                          id: newId as number, 
+                          text: msg.text, 
+                          isMe: false, 
+                          timestamp: ts,
+                          fullTimestamp: ts,
+                          msgType: msg.msgType 
+                      };
+                      if (msg.mindCard) stateMsg.mindCard = msg.mindCard;
+                      return { 
+                          ...prev, 
+                          [friendId]: [...existing, stateMsg] 
+                      };
+                  });
+                } else {
+                  setWechatChats(prev => {
+                      const existing = prev[friendId] || [];
+                      const stateMsg: any = { 
+                          id: newId as number, 
+                          text: msg.text, 
+                          isMe: false, 
+                          timestamp: ts,
+                          fullTimestamp: ts,
+                          msgType: msg.msgType 
+                      };
+                      if (msg.mindCard) stateMsg.mindCard = msg.mindCard;
+                      return { 
+                          ...prev, 
+                          [friendId]: [...existing, stateMsg] 
+                      };
+                  });
+                }
 
                 // ── 状态机推进：每条 AI 消息（非 system）触发 tickProp ──
                 if (msg.msgType !== 'system') {
@@ -1493,7 +1568,7 @@ export default function App() {
               chats={wechatChats}
               personas={personas}
               myProfile={myProfile}
-              onOpenMyProfile={() => setCurrentScreen('my_profile')}
+              onOpenMyProfile={() => { setProfileSource('wechat'); setCurrentScreen('my_profile'); }}
               onTriggerAI={handleTriggerAI}
               isTyping={aiTypingStatus}
               consoleLogs={consoleLogs}
@@ -1618,7 +1693,7 @@ export default function App() {
           {currentScreen === 'my_profile' && (
             <MyProfileApp 
               key="my_profile"
-              onBack={() => setCurrentScreen('wechat')} 
+              onBack={() => setCurrentScreen(profileSource)} 
               myProfile={myProfile} 
               personas={personas}
               onSave={(profile) => {
@@ -1641,7 +1716,7 @@ export default function App() {
                   });
                 }
                 
-                setCurrentScreen('wechat');
+                setCurrentScreen(profileSource);
               }} 
             />
           )}
@@ -1696,6 +1771,88 @@ export default function App() {
             <FeatureIntroScreen 
               key="feature_intro"
               onBack={() => setCurrentScreen('home')}
+            />
+          )}
+          {currentScreen === 'wanhuaji' && (
+            <WanhuajiScreen 
+              key="wanhuaji"
+              onBack={() => setCurrentScreen('home')}
+            />
+          )}
+          {currentScreen === 'weibo' && (
+            <WeiboScreen 
+              key="weibo"
+              onBack={() => setCurrentScreen('home')}
+            />
+          )}
+          {currentScreen === 'x_app' && (
+            <XScreen 
+              key="x_app"
+              onBack={() => setCurrentScreen('home')}
+            />
+          )}
+          {currentScreen === 'taobao' && (
+            <TaobaoScreen 
+              key="taobao"
+              onBack={() => setCurrentScreen('home')}
+            />
+          )}
+          {currentScreen === 'mengrenjian' && (
+            <MengrenjianScreen 
+              key="mengrenjian"
+              onBack={() => setCurrentScreen('home')}
+              myProfile={myProfile}
+              wechatFriends={wechatFriends}
+              chats={mengrenjianChats}
+              isTyping={aiTypingStatus}
+              onClearChat={(friendId) => {
+                ChatDB.mengrenjianMessages.where('contactId').equals(friendId).delete().then(() => {
+                  setMengrenjianChats(prev => {
+                    const newChats = { ...prev };
+                    delete newChats[friendId];
+                    return newChats;
+                  });
+                });
+              }}
+              onSendMessage={(friendId, text, isMe, msgType, recalledContent) => {
+                if (msgType === 'narrator' && !recalledContent) {
+                  const paragraphs = text.split(/\n+/).map((s: string) => s.trim()).filter((s: string) => s);
+                  const segments = paragraphs.length > 0 ? paragraphs : [text];
+                  const baseTs = Date.now();
+                  segments.forEach((seg, i) => {
+                    const ts = baseTs + i;
+                ChatDB.mengrenjianMessages.add({
+                  contactId: friendId,
+                  fullTimestamp: ts,
+                  text: seg,
+                  isMe: isMe,
+                  msgType: 'narrator',
+                }).then((newId) => {
+                  setMengrenjianChats(prev => {
+                    const msgs = prev[friendId] || [];
+                    return { ...prev, [friendId]: [...msgs, { id: newId as number, text: seg, isMe, timestamp: ts, msgType: 'narrator', fullTimestamp: ts }] };
+                  });
+                    }).catch(err => console.error("Failed to save narrator segment", err));
+                  });
+                  return;
+                }
+                const ts = Date.now();
+                ChatDB.mengrenjianMessages.add({
+                  contactId: friendId,
+                  fullTimestamp: ts,
+                  text: text,
+                  isMe: isMe,
+                  msgType: msgType,
+                  recalledContent: recalledContent
+                }).then((newId) => {
+                  setMengrenjianChats(prev => {
+                    const msgs = prev[friendId] || [];
+                    return { ...prev, [friendId]: [...msgs, { id: newId as number, text, isMe, timestamp: ts, msgType, recalledContent, fullTimestamp: ts }] };
+                  });
+                }).catch(err => console.error("Failed to save message", err));
+              }}
+              onTriggerAI={handleTriggerAI}
+              onOpenMyProfile={() => { setProfileSource('mengrenjian'); setCurrentScreen('my_profile'); }}
             />
           )}
         </AnimatePresence>
@@ -1759,7 +1916,7 @@ export default function App() {
                 style={{ transform: `translateX(-${currentPage * 100}%)` }}
               >
                 {/* Page 1 with Card */}
-                <div className="w-full h-full flex-shrink-0 flex flex-col">
+                <div className="w-full h-full flex-shrink-0 flex flex-col pt-8 sm:pt-10">
                   {/* Main Home Card */}
                   <div className="mx-4 sm:mx-12 md:mx-20 lg:mx-32 mb-4 relative rounded-[32px] sm:rounded-[48px] overflow-hidden flex flex-col shrink-0 h-[32vh] sm:h-[38vh] max-h-[320px] sm:max-h-[400px] lg:max-h-[500px] shadow-sm">
               
@@ -1885,7 +2042,7 @@ export default function App() {
                 </div>
 
                 {/* Page 2 */}
-                <div className="w-full flex-shrink-0 flex flex-col">
+                <div className="w-full flex-shrink-0 flex flex-col pt-8 sm:pt-10">
                   <div className="flex-1 px-4 sm:px-12 md:mx-20 lg:mx-32 flex flex-col justify-start pt-2 sm:pt-4">
                   <DndContext 
                     sensors={sensors}
