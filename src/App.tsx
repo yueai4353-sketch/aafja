@@ -1362,7 +1362,7 @@ export default function App() {
 
   return (
     <div 
-      className="relative w-full h-[100dvh] flex justify-center overflow-hidden"
+      className="app-container relative w-full h-[100vh] flex justify-center overflow-hidden"
     >
       {/* Background Layer - 铺满且不加安全区边距 */}
       <div 
@@ -1477,7 +1477,7 @@ export default function App() {
 
       {/* OS Container */}
       <div 
-        className="relative z-10 w-full max-w-7xl h-full flex flex-col overflow-hidden"
+        className="home-container relative z-10 w-full max-w-7xl h-full flex flex-col overflow-hidden"
       >
         
         <AnimatePresence>

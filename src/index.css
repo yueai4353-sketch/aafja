@@ -18,46 +18,17 @@
 }
 
 @layer base {
-  html {
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    overscroll-behavior: none;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-x pan-y;
-    box-sizing: border-box;
-    -webkit-text-size-adjust: 100%;
-  }
-
-  body {
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    overscroll-behavior: none;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-x pan-y;
-    box-sizing: border-box;
-  }
-
-  #root {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    overscroll-behavior: none;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-x pan-y;
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
+  html, body, #root, .app-container, .iframe-container, .home-container {
+    width: 100vw !important;
+    height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    overscroll-behavior: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-x pan-y !important;
+    box-sizing: border-box !important;
+    -webkit-text-size-adjust: 100% !important;
   }
 }
 

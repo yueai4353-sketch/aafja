@@ -25,24 +25,15 @@
 
     <!-- iOS splash screens (prevent white flash) -->
     <style>
-      /* 全屏布局：html/body 铺满视口，#root 用 fixed inset:0 确保 iOS 不出白条 */
-      html, body {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        overscroll-behavior: none;
-      }
-      #root {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
+      /* 全屏布局：html / body / app 外壳 / iframe 父容器 / Home 容器 统一使用 100vh 确保无混用，不要再混用 100% / 100dvh / fixed body，壁纸继续 cover */
+      html, body, #root, .app-container, .iframe-container, .home-container {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        overflow: hidden !important;
+        overscroll-behavior: none !important;
+        box-sizing: border-box !important;
       }
     </style>
   </head>
