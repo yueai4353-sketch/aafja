@@ -58,11 +58,34 @@ ${ai.nsfw_info ? 'NSFW相关：' + ai.nsfw_info : ''}`;
         if (dreamProfileRaw) {
             const dreamProfile = JSON.parse(dreamProfileRaw);
             if (dreamProfile.dreamIdentity || dreamProfile.worldview || dreamProfile.userIdentity) {
-                dreamProfileInfo = `\n【入梦设定 — IF线身份与世界观（以此为准，覆盖原设定中的身份/关系/世界观）】
-${dreamProfile.dreamIdentity ? '你在此世界线中的身份：' + dreamProfile.dreamIdentity : '身份：未设定（请按原设定）'}
-${dreamProfile.worldview ? '世界观背景：' + dreamProfile.worldview : '世界观：未设定（请按原设定）'}
-${dreamProfile.userIdentity ? '与你对话的人在此世界线中的身份：' + dreamProfile.userIdentity : '对方身份：未设定'}
-⚠️ 这是IF线（平行世界线），上述身份和世界观优先级最高，你需要完全代入此设定来扮演。性格、外观、沟通风格等仍参考角色基底信息。`;
+                dreamProfileInfo = `\n
+══════════════════════════════════════════════════════════════
+【⚠️ 最高优先级：入梦设定 — IF线身份与世界观】
+══════════════════════════════════════════════════════════════
+
+${dreamProfile.dreamIdentity ? '▶ 你在此世界线中的身份：' + dreamProfile.dreamIdentity : '▶ 身份：未设定（请按原设定）'}
+${dreamProfile.worldview ? '▶ 世界观背景：' + dreamProfile.worldview : '▶ 世界观：未设定（请按原设定）'}
+${dreamProfile.userIdentity ? '▶ 与你对话的人在此世界线中的身份：' + dreamProfile.userIdentity : '▶ 对方身份：未设定'}
+
+━━━━━━ 时间线认知约束（必须严格遵守） ━━━━━━
+
+这是一条IF线（平行世界线）。上述世界观是你此刻的"现实"——它拥有绝对最高优先级，高于你角色基底中的任何设定。
+
+你必须进行以下推理：
+1. 仔细阅读世界观中描述的时间点、年龄、场景。这就是"现在"。
+2. 回顾你角色基底中的所有关系、经历、记忆。逐一检查：这些关系/经历在世界观设定的时间点是否已经发生？
+3. 如果某段关系、某个人、某件事是在世界观时间点之后才发生的——你此刻就不知道、不认识、没经历过。就像这些事从未存在。
+4. 如果世界观设定了一个全新的场景（如"回到家发现有人在床上"），你必须按照该场景中一个对此毫无预知的人来反应——惊讶、困惑、警惕，而不是默认认识对方。
+
+举例逻辑：
+- 角色原设40岁有妻子 → 世界观写"你32岁" → 你此刻32岁，如果妻子是35岁才认识的，此刻你不认识她、不知道她的存在。
+- 角色原设有一段刻骨铭心的恋爱 → 世界观写"你回到高中时代" → 如果这段恋爱是大学才开始的，此刻你对那个人毫无印象。
+- 世界观写"你醒来发现自己在一个陌生的房间" → 你就是不知道这是哪里、不认识周围的人。
+
+核心原则：世界观定义了你此刻的认知边界。在这个时间点/场景之后才获得的一切知识、关系、记忆，对你来说都不存在。你只拥有在世界观时间点之前合理积累的认知。
+
+性格、外观、沟通风格、习惯等基础特质仍参考角色基底（这些是你这个人本身的特质，不受时间线影响）。但身份、关系、人生经历必须服从世界观时间线。
+══════════════════════════════════════════════════════════════`;
             }
         }
     } catch (e) {}
@@ -242,7 +265,7 @@ ${myProfile.nsfw ? 'NSFW相关：' + myProfile.nsfw : ''}`;
 3. 绝不跳脱角色，绝不把用户的信息当成自己的信息。
 4. 回复要符合IF线世界观的逻辑和氛围。`;
 
-    result.aiPersonaInfo = promptIntro + aiWechatInfo + aiCoreInfo + dreamProfileInfo + aiLocationInfo + aiWeatherInfo + result.worldbookContent + roleplayInstruction;
+    result.aiPersonaInfo = promptIntro + aiWechatInfo + aiCoreInfo + aiLocationInfo + aiWeatherInfo + result.worldbookContent + dreamProfileInfo + roleplayInstruction;
 
     // === 5. 读取设置 ===
     const settingsRec = await AppDB.appSettings.get(`chat_settings_${contactId}`);
@@ -561,6 +584,13 @@ ${worldbookForceContent}
 【你这个人】
 下面这些就是你。钻进去，吃透自己是谁，然后想什么、说什么、做什么，都从你自己来。
 你本来什么样就什么样——别给自己添没有的，也别把自己压平。
+
+⚠️ IF线世界观推理规则（每轮回复前必须内部执行）：
+如果"入梦设定"中指定了时间点、年龄或场景——你的认知边界必须严格卡在那个时间点。
+你基底设定中所有"在那之后才发生的"关系、人物、事件、记忆，此刻对你来说都不存在。
+面对一个你在该时间线上不可能认识的人，你的反应必须是：不认识、陌生、困惑——而不是热情相认。
+这条规则优先级高于一切其他设定。
+
 ${aiPersona}
 ${relationship}
 

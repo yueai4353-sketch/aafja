@@ -24,6 +24,7 @@ export const MengrenjianApp = ({
   onTriggerAI,
   onOpenMyProfile,
   onClearChat,
+  onEditMessage,
   onDeleteMessages
 }: { 
   onBack: () => void; 
@@ -35,6 +36,7 @@ export const MengrenjianApp = ({
   onTriggerAI?: (friendId: string, isMengrenjian?: boolean) => void;
   onOpenMyProfile: () => void;
   onClearChat?: (friendId: string) => void;
+  onEditMessage?: (friendId: string, msgId: number, newText: string) => void;
   onDeleteMessages?: (friendId: string, ids: number[]) => Promise<void>;
 }) => {
   const [currentTab, setCurrentTab] = useState<'records' | 'archive' | 'face' | 'me'>('records');
@@ -1092,30 +1094,61 @@ export const MengrenjianApp = ({
                 className="fixed inset-0 bg-black/30 z-[90]"
               />
               <motion.div
-                initial={{ opacity: 0, scale: 0.9, y: 30 }}
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: 30 }}
-                className="fixed left-[10%] right-[10%] top-1/3 z-[91] bg-white rounded-3xl p-5 shadow-2xl border-4 border-[#eecdd2]/30"
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="fixed left-[5%] right-[5%] top-[15%] bottom-[10%] z-[91] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
               >
-                <div className="text-[11px] text-gray-400 font-medium tracking-wide mb-3">💭 内心活动</div>
-                {viewingMindCard.thought && (
-                  <div className="text-[14px] text-gray-800 font-bold mb-2 leading-relaxed">{viewingMindCard.thought}</div>
-                )}
-                {viewingMindCard.action && (
-                  <div className="text-[12px] text-gray-500 mb-1"><span className="text-gray-400">动作：</span>{viewingMindCard.action}</div>
-                )}
-                {viewingMindCard.attire && (
-                  <div className="text-[12px] text-gray-500 mb-1"><span className="text-gray-400">着装：</span>{viewingMindCard.attire}</div>
-                )}
-                {viewingMindCard.dark_side && (
-                  <div className="text-[12px] text-gray-500 mb-1"><span className="text-gray-400">阴暗面：</span>{viewingMindCard.dark_side}</div>
-                )}
-                <button 
-                  onClick={() => setViewingMindCard(null)}
-                  className="mt-4 w-full py-2.5 bg-pink-50 text-[#e87a90] rounded-xl text-[14px] font-medium active:bg-pink-100"
-                >
-                  关闭
-                </button>
+                {/* 头部 */}
+                <div className="flex items-center justify-between px-5 pt-5 pb-3">
+                  <div className="text-[16px] text-gray-800 font-semibold">TA 的心声</div>
+                  <button 
+                    onClick={() => setViewingMindCard(null)}
+                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-600"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                  </button>
+                </div>
+                
+                {/* 内容区域 */}
+                <div className="flex-1 overflow-y-auto px-5 pb-5 space-y-3">
+                  {viewingMindCard.attire && (
+                    <div className="border border-gray-100 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[14px]">💜</span>
+                        <span className="text-[14px] font-semibold text-gray-800">衣着打扮</span>
+                      </div>
+                      <div className="text-[14px] text-gray-600 leading-relaxed">{viewingMindCard.attire}</div>
+                    </div>
+                  )}
+                  {viewingMindCard.action && (
+                    <div className="border border-gray-100 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[14px]">💜</span>
+                        <span className="text-[14px] font-semibold text-gray-800">行为动作</span>
+                      </div>
+                      <div className="text-[14px] text-gray-600 leading-relaxed">{viewingMindCard.action}</div>
+                    </div>
+                  )}
+                  {viewingMindCard.thought && (
+                    <div className="border border-gray-100 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[14px]">💗</span>
+                        <span className="text-[14px] font-semibold text-gray-800">真实心声</span>
+                      </div>
+                      <div className="text-[14px] text-gray-600 leading-relaxed">{viewingMindCard.thought}</div>
+                    </div>
+                  )}
+                  {viewingMindCard.dark_side && (
+                    <div className="border border-gray-100 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[14px]">🖤</span>
+                        <span className="text-[14px] font-semibold text-gray-800">阴暗面</span>
+                      </div>
+                      <div className="text-[14px] text-gray-600 leading-relaxed">{viewingMindCard.dark_side}</div>
+                    </div>
+                  )}
+                </div>
               </motion.div>
             </>
           )}
@@ -1227,9 +1260,8 @@ export const MengrenjianApp = ({
                   <button className="text-[16px] text-gray-500" onClick={() => setEditingMsg(null)}>取消</button>
                   <span className="font-medium text-gray-800">编辑消息</span>
                   <button className="text-[16px] text-[#e87a90] font-medium" onClick={async () => {
-                    if (editingMsg && editingText.trim() && onDeleteMessages && onSendMessage) {
-                      await onDeleteMessages(chattingFriend.id, [editingMsg.id]);
-                      onSendMessage(chattingFriend.id, editingText.trim(), editingMsg.isMe, editingMsg.msgType || 'text');
+                    if (editingMsg && editingText.trim() && onEditMessage) {
+                      onEditMessage(chattingFriend.id, editingMsg.id, editingText.trim());
                     }
                     setEditingMsg(null);
                   }}>保存</button>
@@ -1665,21 +1697,13 @@ export const MengrenjianApp = ({
   return (
     <div className="fixed inset-0 bg-[#fef7f9] z-50 flex flex-col"
          style={{ backgroundImage: 'radial-gradient(#ffd6e0 1.5px, transparent 1.5px)', backgroundSize: '24px 24px' }}>
-      {/* 状态栏 */}
-      <div className="bg-transparent px-4 pt-3 pb-2">
-        <div className="flex items-center justify-between text-[11px] mb-3">
-          <span className="font-medium">{timeString}</span>
-          <div className="flex items-center gap-1.5">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 20h.01M7 20v-4M12 20v-8M17 20V8M22 20V4"/></svg>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="18" height="12" rx="2"/><path d="M22 11v4"/></svg>
-          </div>
-        </div>
-
+      {/* 状态栏+导航栏 */}
+      <div className="bg-transparent px-4 pt-[env(safe-area-inset-top,12px)] pb-2">
         {/* 顶部导航栏 */}
-        <div className="flex items-center justify-between pb-3 relative">
+        <div className="flex items-center justify-between py-2 relative">
           <button
             onClick={onBack}
-            className="w-8 h-8 flex items-center justify-center active:opacity-50 transition-opacity bg-white/40 rounded-full border border-pink-100 backdrop-blur-sm"
+            className="w-9 h-9 flex items-center justify-center active:opacity-50 transition-opacity bg-white/40 rounded-full border border-pink-100 backdrop-blur-sm"
           >
             <ChevronLeft size={20} className="text-gray-700" />
           </button>

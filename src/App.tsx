@@ -553,7 +553,25 @@ export default function App() {
   const handleTriggerAI = async (friendId: string, isMengrenjian: boolean = false) => {
     const friend = personas.find(p => p.id === friendId) || wechatFriends.find(f => f.id === friendId);
     if (!friend) return;
-    const msgs = isMengrenjian ? (mengrenjianChats[friendId] || []) : (wechatChats[friendId] || []);
+    // 从数据库实时读取最新消息，避免闭包中的旧 state 导致上下文包含已删除消息
+    let msgs: any[];
+    try {
+      const dbTable = isMengrenjian ? ChatDB.mengrenjianMessages : ChatDB.messages;
+      const dbMessages = await dbTable.where('contactId').equals(friendId).sortBy('fullTimestamp');
+      msgs = dbMessages.map(m => ({
+        id: m.id,
+        text: m.text,
+        isMe: m.isMe,
+        timestamp: m.fullTimestamp,
+        fullTimestamp: m.fullTimestamp,
+        msgType: m.msgType,
+        mindCard: (m as any).mindCard ?? null,
+        recalledContent: (m as any).recalledContent ?? null,
+      }));
+    } catch (err) {
+      console.error("Failed to load messages for AI context", err);
+      msgs = isMengrenjian ? (mengrenjianChats[friendId] || []) : (wechatChats[friendId] || []);
+    }
     
     const mandatoryMemSize = parseInt(localStorage.getItem('os_api_mandatory_mem') || '10', 10);
     const contextMemSize = Math.max(mandatoryMemSize, parseInt(localStorage.getItem('os_api_context_mem') || '50', 10));
@@ -1853,6 +1871,21 @@ export default function App() {
               }}
               onTriggerAI={handleTriggerAI}
               onOpenMyProfile={() => { setProfileSource('mengrenjian'); setCurrentScreen('my_profile'); }}
+              onEditMessage={(friendId, msgId, newText) => {
+                ChatDB.mengrenjianMessages.update(msgId, { text: newText }).then(() => {
+                  setMengrenjianChats(prev => {
+                    const msgs = prev[friendId] || [];
+                    return { ...prev, [friendId]: msgs.map(m => m.id === msgId ? { ...m, text: newText } : m) };
+                  });
+                }).catch(err => console.error("Failed to edit mengrenjian message", err));
+              }}
+              onDeleteMessages={async (friendId, ids) => {
+                await ChatDB.mengrenjianMessages.bulkDelete(ids);
+                setMengrenjianChats(prev => {
+                  const msgs = (prev[friendId] || []).filter(m => !ids.includes(m.id));
+                  return { ...prev, [friendId]: msgs };
+                });
+              }}
             />
           )}
         </AnimatePresence>
