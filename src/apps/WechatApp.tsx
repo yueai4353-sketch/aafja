@@ -2176,7 +2176,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
             if (msg.msgType === 'system') return null;
 
             let extractedMindCard = msg.mindCard || null;
-            let cleanText = (msg.text || '').replace(/\[PHONE:(GIVE|RETURN|REQUEST|RECEIVED)\]/g, '').trim();
+            let cleanText = (msg.text || '').replace(/\[PHONE:(GIVE|RETURN|REQUEST|RECEIVED)\]/g, '').replace(/\[TAOBAO_PAID\]/g, '').trim();
             if (!cleanText && !msg.mindCard) return null;
             let quoteInfo = null;
             
@@ -2258,6 +2258,241 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                             ))}
                           </div>
                         )}
+                      </div>
+                    </div>
+                  </div>
+                </React.Fragment>
+              );
+            }
+
+            // 检测 Gift Card
+            const giftCardMatch = cleanText.match(/^\[GIFT_CARD\]([\s\S]*?)\[\/GIFT_CARD\]$/);
+            if (giftCardMatch) {
+              let giftData: any = {};
+              try { giftData = JSON.parse(giftCardMatch[1]); } catch {}
+              
+              const prevVisibleMsgGift = (() => {
+                for (let i = idx - 1; i >= 0; i--) {
+                  if (messages[i].msgType !== 'system') return messages[i];
+                }
+                return null;
+              })();
+              const showTimeGift = shouldShowTimestamp(
+                msg.fullTimestamp ?? msg.timestamp ?? 0,
+                prevVisibleMsgGift ? (prevVisibleMsgGift.fullTimestamp ?? prevVisibleMsgGift.timestamp ?? null) : null
+              );
+              const timestampValueGift = msg.fullTimestamp ?? msg.timestamp ?? 0;
+              const isTimestampHiddenGift = hiddenTimestamps.has(timestampValueGift);
+              
+              const dateStr = new Date(giftData.timestamp || Date.now()).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(/\//g, '/');
+
+              return (
+                <React.Fragment key={`msg-gift-${msg.id || idx}`}>
+                  {showTimeGift && !isTimestampHiddenGift && (
+                    <div
+                      className="chat-timestamp"
+                      onPointerDown={() => startTimestampLongPress(msg)}
+                      onPointerUp={cancelTimestampLongPress}
+                      onPointerLeave={cancelTimestampLongPress}
+                      onPointerCancel={cancelTimestampLongPress}
+                      onContextMenu={(e) => { e.preventDefault(); cancelTimestampLongPress(); }}
+                    >
+                      {formatChatTimestamp(msg.fullTimestamp ?? msg.timestamp ?? 0)}
+                    </div>
+                  )}
+                  <div className={`flex items-start gap-3 w-full my-1 ${msg.isMe ? 'flex-row-reverse' : ''} ${isMultiSelecting ? 'pl-8' : ''}`}>
+                    <div className="w-10 h-10 bg-gray-200 rounded-[6px] flex items-center justify-center overflow-hidden shrink-0 mt-0.5">
+                      {msg.isMe ? (
+                        (friend.my_bound_avatar || myAvatar) ? <img src={(friend.my_bound_avatar || myAvatar) as string} alt="" className="w-full h-full object-cover" /> : <User size={20} className="text-gray-400" />
+                      ) : (
+                        friend.avatar ? <img src={friend.avatar} alt="" className="w-full h-full object-cover" /> : <User size={20} className="text-gray-400" />
+                      )}
+                    </div>
+                    
+                    <div
+                      className="bg-white rounded-[12px] p-4 shadow-sm border border-gray-100 relative overflow-hidden"
+                      style={{ minWidth: '240px', maxWidth: '280px' }}
+                      onPointerDown={() => { if (!isMultiSelecting) startLongPress(msg); }}
+                      onPointerUp={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                      onPointerLeave={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                      onPointerCancel={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                      onContextMenu={(e: any) => { e.preventDefault(); if (!isMultiSelecting) cancelLongPress(); }}
+                    >
+                      {/* Top Header */}
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[11px] text-[#999] tracking-wider uppercase">GIFT CARD</span>
+                        <span className="text-[11px] bg-[#F5F5F5] text-[#666] px-2 py-0.5 rounded font-medium">已送出</span>
+                      </div>
+                      <div className="text-[12px] text-[#666] mb-6 line-clamp-1">{giftData.shop || '淘宝自营'}</div>
+
+                      {/* Content */}
+                      <div className="mb-8">
+                        <div className="text-[11px] text-[#999] tracking-wider uppercase mb-2">SELECTED GIFT</div>
+                        <div className="text-[18px] font-bold text-[#333] leading-tight line-clamp-2 break-all">
+                          {giftData.title || '精选礼物'}
+                        </div>
+                      </div>
+
+                      {/* Grid Info */}
+                      <div className="grid grid-cols-2 gap-y-4 gap-x-2 border-t border-gray-50 pt-4 mb-4">
+                        <div>
+                          <div className="text-[11px] text-[#999] mb-1">编号</div>
+                          <div className="text-[13px] text-[#666] line-clamp-1 font-mono">{giftData.id || `G-ITEM${Math.floor(Math.random()*100)}`}</div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] text-[#999] mb-1">来源</div>
+                          <div className="text-[13px] text-[#666] line-clamp-1">{giftData.shop || '淘宝自营'}</div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] text-[#999] mb-1">礼物值</div>
+                          <div className="text-[13px] text-[#666] font-mono">¥{giftData.price || 0}</div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] text-[#999] mb-1">送出</div>
+                          <div className="text-[13px] text-[#666]">{dateStr}</div>
+                        </div>
+                      </div>
+
+                      {/* Bottom Footer */}
+                      <div className="flex justify-between items-center border-t border-gray-50 pt-3">
+                        <span className="text-[10px] text-[#CCC] tracking-wider uppercase">GIFT CERTIFICATE</span>
+                        <span className="text-[10px] text-[#CCC] tracking-wider uppercase">AI PHONE</span>
+                      </div>
+                    </div>
+                  </div>
+                </React.Fragment>
+              );
+            }
+
+            // 检测淘宝替付卡片
+            const taobaoPayMatch = cleanText.match(/^\[TAOBAO_PAY\]([\s\S]*?)\[\/TAOBAO_PAY\]$/);
+            if (taobaoPayMatch) {
+              let payData: any = {};
+              try { payData = JSON.parse(taobaoPayMatch[1]); } catch {}
+              
+              const prevVisibleMsgTb = (() => {
+                for (let i = idx - 1; i >= 0; i--) {
+                  if (messages[i].msgType !== 'system') return messages[i];
+                }
+                return null;
+              })();
+              const showTimeTb = shouldShowTimestamp(
+                msg.fullTimestamp ?? msg.timestamp ?? 0,
+                prevVisibleMsgTb ? (prevVisibleMsgTb.fullTimestamp ?? prevVisibleMsgTb.timestamp ?? null) : null
+              );
+              const timestampValueTb = msg.fullTimestamp ?? msg.timestamp ?? 0;
+              const isTimestampHiddenTb = hiddenTimestamps.has(timestampValueTb);
+              
+              const firstItem = payData.items?.[0];
+              const displayTitle = firstItem ? (firstItem.title.length > 18 ? firstItem.title.slice(0, 18) + '...' : firstItem.title) : '淘宝订单';
+              
+              // 检查后续AI消息是否包含 [TAOBAO_PAID] 标记（表示已支付）
+              const isPaid = (() => {
+                for (let i = idx + 1; i < messages.length; i++) {
+                  const m = messages[i];
+                  if (!m.isMe && m.text && m.text.includes('[TAOBAO_PAID]')) return true;
+                }
+                return false;
+              })();
+              
+              return (
+                <React.Fragment key={`msg-taobao-${msg.id || idx}`}>
+                  {showTimeTb && !isTimestampHiddenTb && (
+                    <div
+                      className="chat-timestamp"
+                      onPointerDown={() => startTimestampLongPress(msg)}
+                      onPointerUp={cancelTimestampLongPress}
+                      onPointerLeave={cancelTimestampLongPress}
+                      onPointerCancel={cancelTimestampLongPress}
+                      onContextMenu={(e) => { e.preventDefault(); cancelTimestampLongPress(); }}
+                    >
+                      {formatChatTimestamp(msg.fullTimestamp ?? msg.timestamp ?? 0)}
+                    </div>
+                  )}
+                  <div className={`flex items-start gap-3 w-full my-1 ${msg.isMe ? 'flex-row-reverse' : ''} ${isMultiSelecting ? 'pl-8' : ''}`}>
+                    <div className="w-10 h-10 bg-gray-200 rounded-[6px] flex items-center justify-center overflow-hidden shrink-0 mt-0.5">
+                      {msg.isMe ? (
+                        (friend.my_bound_avatar || myAvatar) ? <img src={(friend.my_bound_avatar || myAvatar) as string} alt="" className="w-full h-full object-cover" /> : <User size={20} className="text-gray-400" />
+                      ) : (
+                        friend.avatar ? <img src={friend.avatar} alt="" className="w-full h-full object-cover" /> : <User size={20} className="text-gray-400" />
+                      )}
+                    </div>
+                    <div
+                      className="max-w-[75%] rounded-[12px] overflow-hidden cursor-pointer select-none border border-white/5"
+                      style={{ background: '#0C0C0C' }}
+                      onClick={() => {
+                        const el = document.getElementById(`taobao-pay-detail-${msg.id || idx}`);
+                        if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+                      }}
+                      onPointerDown={() => { if (!isMultiSelecting) startLongPress(msg); }}
+                      onPointerUp={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                      onPointerLeave={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                      onPointerCancel={() => { if (!isMultiSelecting) cancelLongPress(); }}
+                      onContextMenu={(e: any) => { e.preventDefault(); if (!isMultiSelecting) cancelLongPress(); }}
+                    >
+                      {/* 淘宝替付卡片头部 */}
+                      <div className="flex items-center gap-1.5 px-3.5 pt-3 pb-1">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E8C86A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                          <line x1="22" y1="2" x2="11" y2="13"></line>
+                          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                        <span className="text-[#E8C86A] text-[12px]">请求代付</span>
+                      </div>
+                      {/* 卡片内容 */}
+                      <div className="px-3.5 pt-2.5 pb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-11 h-11 bg-[#2D2615] rounded-[10px] flex items-center justify-center shrink-0 border border-[#E8C86A]/20">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E8C86A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                              <line x1="3" y1="6" x2="21" y2="6"></line>
+                              <path d="M16 10a4 4 0 0 1-8 0"></path>
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+                            <p className="text-[#E8C86A] text-[14px] leading-tight line-clamp-1">{displayTitle}</p>
+                            <p className="text-[#E8C86A] text-[18px] font-bold">¥ {payData.total || 0}</p>
+                          </div>
+                        </div>
+                        {payData.note && (
+                          <p className="text-[#D4A853] text-[13px] mt-2.5 leading-snug break-words">"{payData.note}"</p>
+                        )}
+                      </div>
+                      {/* 底部状态栏 */}
+                      <div className="flex items-center justify-between px-3.5 py-2.5 border-t border-[#3A3320]">
+                        <span className="text-[#9D8F62] text-[11px]">商城代付</span>
+                        <div className="flex items-center gap-1 text-[#9D8F62]">
+                          {isPaid ? (
+                            <>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="9 12 11 14 15 10"></polyline>
+                              </svg>
+                              <span className="text-[11px]">已支付</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                              </svg>
+                              <span className="text-[11px]">等待代付</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {/* 展开详情（默认隐藏） */}
+                      <div id={`taobao-pay-detail-${msg.id || idx}`} style={{ display: 'none' }} className="border-t border-[#3A3320] px-3.5 py-3 bg-[#0A0A0A]">
+                        <p className="text-[#9D8F62] text-[11px] mb-2">账单明细：</p>
+                        {payData.items?.map((item: any, i: number) => (
+                          <div key={i} className="flex justify-between items-center py-1">
+                            <span className="text-[#E8C86A]/80 text-[12px]">{item.title} x{item.quantity}</span>
+                            <span className="text-[#E8C86A] text-[12px]">¥{item.price * item.quantity}</span>
+                          </div>
+                        ))}
+                        <div className="flex justify-between items-center pt-2 mt-1 border-t border-[#3A3320]">
+                          <span className="text-[#9D8F62] text-[12px] font-medium">合计</span>
+                          <span className="text-[#E8C86A] text-[14px] font-bold">¥{payData.total}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2487,9 +2722,10 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
 
                 {groups.map((group, gIdx) => {
                      const isLastGroup = gIdx === groups.length - 1;
+                     const lastDialogueGIdx = groups.reduce((acc: number, g: any, i: number) => g.type === 'dialogue' ? i : acc, -1);
                      if (group.type === 'narrator') {
                          const pIdx = 0;
-                        const showDot = showMindCardSetting && !msg.isMe && extractedMindCard;
+                        const showDot = false;
                         const narratorText = group.parts[0].text as string;
                         const isWuYuCard = /^\[.*(出现了|被收回了|的效果消退了)/.test(narratorText);
                          if (isWuYuCard) {
@@ -2712,7 +2948,7 @@ const ChatScreen = ({ friend, myAvatar, messages, onSendMessage, onBack, onSetRe
                             </div>
                             <div className={`max-w-[70%] flex flex-col gap-2 ${msg.isMe ? 'items-end' : 'items-start'}`}>
                                {group.parts.map((p: any, pIdx: number) => {
-                                  const showDot = showMindCardSetting && !msg.isMe && extractedMindCard && pIdx === group.parts.length - 1;
+                                  const showDot = showMindCardSetting && !msg.isMe && extractedMindCard && pIdx === group.parts.length - 1 && gIdx === lastDialogueGIdx;
                                   const showCotBubble = !msg.isMe && isCotMsg && showCotDisplaySetting && isLastGroup && pIdx === group.parts.length - 1;
                                   return (
                                      <React.Fragment key={`${gIdx}-${pIdx}`}>
@@ -5047,6 +5283,20 @@ const WechatScreen = ({
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [fakeTransactions, setFakeTransactions] = useState<any[]>(() => {
+    const saved = localStorage.getItem('wechat_fake_transactions');
+    if (saved) return JSON.parse(saved);
+    return [
+      { id: 1, title: '购物付款', time: '今天 12:31', amount: '-¥120.00' },
+      { id: 2, title: '购物付款', time: '今天 12:32', amount: '-¥120.00' },
+      { id: 3, title: '购物付款', time: '今天 12:33', amount: '-¥120.00' }
+    ];
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem('wechat_fake_transactions', JSON.stringify(fakeTransactions));
+  }, [fakeTransactions]);
+
   React.useEffect(() => {
     localStorage.setItem('wechat_wallet_balance', walletBalance.toString());
   }, [walletBalance]);
@@ -5621,69 +5871,197 @@ const WechatScreen = ({
       
       <AnimatePresence>
         {showPayScreen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: '100%' }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: '100%' }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute inset-0 bg-[#f7f7f7] z-[120] flex flex-col pt-[env(safe-area-inset-top,0px)]"
+            className="absolute inset-0 bg-[#f8f9fc] z-[120] flex flex-col pt-[env(safe-area-inset-top,0px)]"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 shrink-0 bg-white shadow-sm relative z-20">
-              <button onClick={() => setShowPayScreen(false)} className="p-2 -ml-2 text-gray-800 active:bg-gray-100 rounded-full transition-colors z-10">
+            <div className="flex items-center justify-between px-4 py-3 shrink-0 bg-[#f8f9fc] relative z-20">
+              <button onClick={() => setShowPayScreen(false)} className="p-2 -ml-2 text-gray-800 active:bg-gray-200/50 rounded-full transition-colors z-10">
                 <ChevronLeft size={24} strokeWidth={2} />
               </button>
               <span className="text-[17px] font-medium text-gray-800 absolute left-1/2 -translate-x-1/2">
-                支付
+                余额管理
               </span>
               <div className="w-10 flex justify-end items-center mr-1">
-                <button 
+                <button
                   onClick={() => setShowChangeBalanceModal(true)}
-                  className="p-1 -mr-1 text-gray-800 active:bg-gray-100 rounded-full transition-colors z-10"
+                  className="p-1 -mr-1 text-gray-800 active:bg-gray-200/50 rounded-full transition-colors z-10"
                 >
                   <MoreHorizontal size={24} strokeWidth={2} className="text-[#333]" />
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto w-full flex flex-col p-4 bg-[#f7f7f7] gap-4">
-              <div className="bg-white rounded-[16px] border border-gray-100 shadow-[0_1px_8px_rgba(0,0,0,0.03)] flex flex-col overflow-hidden">
-                <div className="pt-8 pb-5 flex flex-col items-center border-b border-gray-100 mx-5 relative">
-                  <div className="w-[52px] h-[52px] mb-3 relative flex items-center justify-center">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <rect x="2" y="5" width="20" height="14" rx="2" stroke="#4AAB76" strokeWidth="1.5"/>
-                      <circle cx="12" cy="12" r="3" stroke="#4AAB76" strokeWidth="1.5"/>
-                      <path d="M5 12h2M17 12h2" stroke="#4AAB76" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                  </div>
-                  <span className="text-[15px] font-medium text-gray-800 mb-1">零钱</span>
-                  <span className="text-[13px] text-gray-400 mb-1">余额(元)</span>
-                  <span className="text-[40px] font-medium text-gray-800 tracking-tight leading-none mb-1">
-                    {walletBalance.toFixed(2)}
-                  </span>
+            <div className="flex-1 overflow-y-auto w-full flex flex-col p-4 gap-6 no-scrollbar">
+              {/* REAL BALANCE Card */}
+              <div className="bg-[#eff5ff] rounded-[24px] p-6 flex flex-col relative overflow-hidden">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-[13px] font-medium text-[#4a638a] tracking-wider">REAL BALANCE</span>
+                  <span className="text-[13px] text-[#4a638a]">{bankCards.length}张银行卡</span>
                 </div>
-                <div className="py-3 text-center">
-                  <span className="text-[12px] text-gray-400">可用于消费、转账、发红包</span>
+                
+                <span className="text-[32px] font-bold text-[#111] font-serif mb-2">
+                  <span className="text-[20px] mr-1">¥</span>
+                  {walletBalance.toFixed(2)}
+                </span>
+                
+                <span className="text-[13px] text-[#6b82a8] mb-8">红包、转账与余额支付默认使用这里</span>
+                
+                <div className="flex justify-between items-end">
+                  <span className="text-[13px] text-[#6b82a8]">10 条流水</span>
+                  <div className="flex gap-3">
+                    <button className="flex items-center gap-1.5 px-4 py-2 bg-white rounded-full text-[#3b7cff] text-[14px] font-medium shadow-sm">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      转入
+                    </button>
+                    <button className="flex items-center gap-1.5 px-4 py-2 bg-white rounded-full text-[#3b7cff] text-[14px] font-medium shadow-sm">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      提现
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div 
-                className="bg-white rounded-[12px] border border-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.02)] p-4 flex items-center justify-between active:bg-gray-50 cursor-pointer transition-colors"
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent('showBankAlert'));
-                }}
-              >
-                <div className="flex items-center gap-3">
-                  <CreditCard size={22} className="text-gray-500" strokeWidth={1.5} />
-                  <div className="flex flex-col">
-                    <span className="text-[16px] text-[#333333]">银行卡</span>
-                    <span className="text-[12px] text-gray-400">已绑定{bankCards.length}张</span>
+              {/* Bank Cards Section */}
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[16px] font-medium text-[#111]">银行卡</span>
+                  <button 
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('showBankAlert'));
+                    }}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-[#4d4d4d] text-white rounded-full text-[13px]"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    新增卡
+                  </button>
+                </div>
+                
+                {/* Horizontal scroll cards */}
+                <div className="flex overflow-x-auto gap-4 pb-2 -mx-4 px-4 no-scrollbar snap-x snap-mandatory">
+                  {bankCards.length > 0 ? bankCards.map((card, i) => (
+                    <div key={i} className="min-w-[280px] snap-center shrink-0 h-[170px] rounded-[16px] bg-gradient-to-br from-[#d4d4d4] to-[#8a8a8a] p-5 flex flex-col justify-between text-[#111] shadow-md relative overflow-hidden">
+                      <div className="absolute right-0 top-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10" />
+                      
+                      <div className="flex justify-between items-start relative z-10">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-md border border-[#111]/20 flex items-center justify-center">
+                            <CreditCard size={14} className="text-[#111]" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[15px] font-serif font-bold tracking-widest leading-none">CHAT WALLET</span>
+                            <span className="text-[9px] text-[#111]/60 tracking-wider">REAL BALANCE</span>
+                          </div>
+                        </div>
+                        <span className="text-[12px] font-medium bg-[#111]/10 px-2 py-0.5 rounded text-[#111]/80">备用</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center relative z-10">
+                        <div className="w-10 h-8 rounded bg-gradient-to-b from-[#e8e8e8] to-[#c4c4c4] border border-white/40 flex items-center justify-center">
+                          <div className="w-full h-full border border-black/10 rounded m-1 grid grid-cols-2 grid-rows-3 gap-[1px] opacity-30">
+                            {[...Array(6)].map((_, j) => <div key={j} className="bg-black border-[0.5px] border-black" />)}
+                          </div>
+                        </div>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-60"><path d="M4 14a10 10 0 0 1 16 0"/><path d="M8 10a4 4 0 0 1 8 0"/><path d="M12 6v.01"/></svg>
+                      </div>
+                      
+                      <div className="flex justify-between items-end relative z-10">
+                        <div className="flex flex-col">
+                          <div className="flex gap-3 text-[14px] font-mono tracking-widest opacity-80 mb-2">
+                            <span>****</span>
+                            <span>****</span>
+                            <span>****</span>
+                            <span className="text-[16px] font-bold">{(i * 1111 + 7735).toString().slice(-4)}</span>
+                          </div>
+                          <div className="flex justify-between w-full pr-8">
+                            <div className="flex flex-col">
+                              <span className="text-[8px] opacity-60 uppercase mb-0.5">Card Name</span>
+                              <span className="text-[12px] font-medium">储蓄卡</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[8px] opacity-60 uppercase mb-0.5">Balance</span>
+                              <span className="text-[12px] font-medium">¥{card.balance.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <span className="text-[8px] opacity-60 uppercase mb-0.5">Bank</span>
+                          <span className="text-[16px] font-bold italic tracking-wider">PAY</span>
+                        </div>
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="min-w-[280px] shrink-0 h-[170px] rounded-[16px] bg-gray-200 border border-gray-300 border-dashed flex items-center justify-center text-gray-500">
+                      请添加银行卡
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Current Card Balance Actions */}
+              {bankCards.length > 0 && (
+                <div className="bg-white rounded-[24px] p-5 shadow-sm mt-2">
+                  <span className="text-[13px] text-gray-400 block mb-1">当前银行卡余额</span>
+                  <span className="text-[24px] font-bold text-[#111] mb-2 block">¥{bankCards[0].balance.toFixed(2)}</span>
+                  <span className="text-[13px] text-gray-400 block mb-6">储蓄卡 · **** **** **** 7735</span>
+                  
+                  <div className="flex gap-2">
+                    <button className="flex-1 flex justify-center items-center gap-1.5 py-3 rounded-[12px] bg-[#ebf7ee] text-[#2c914b] text-[14px] font-medium">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      转入账户
+                    </button>
+                    <button className="flex-1 flex justify-center items-center gap-1.5 py-3 rounded-[12px] bg-[#f5f5f5] text-[#333] text-[14px] font-medium">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      转出账户
+                    </button>
+                    <button className="flex-1 flex justify-center items-center gap-1.5 py-3 rounded-[12px] bg-[#fff0f0] text-[#ff4d4f] text-[14px] font-medium">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                      删除
+                    </button>
                   </div>
                 </div>
-                <ChevronRight size={18} className="text-[#cccccc]" />
+              )}
+
+              {/* Transactions Placeholder */}
+              <div className="bg-white rounded-[24px] p-5 shadow-sm mt-2 mb-8">
+                <div className="flex justify-between items-center mb-6">
+                  <span className="text-[16px] font-medium text-[#111]">流水</span>
+                  <span className="text-[12px] text-gray-400">余额、银行卡与购物付款实时同步</span>
+                </div>
+                
+                <div className="flex flex-col gap-6">
+                  {fakeTransactions.length > 0 ? fakeTransactions.map(tx => (
+                    <div key={tx.id} className="flex justify-between items-center group">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-500">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[15px] text-[#111]">{tx.title}</span>
+                          <span className="text-[12px] text-gray-400">{tx.time}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[16px] font-medium text-[#111]">{tx.amount}</span>
+                        <button 
+                          onClick={() => setFakeTransactions(fakeTransactions.filter(t => t.id !== tx.id))}
+                          className="w-6 h-6 flex items-center justify-center text-gray-300 active:text-red-500 transition-colors"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="text-center text-gray-400 text-[13px] py-4">暂无流水记录</div>
+                  )}
+                </div>
               </div>
             </div>
-            
+
             <BankAlertModal bankCards={bankCards} setBankCards={setBankCards} />
             
             <AnimatePresence>

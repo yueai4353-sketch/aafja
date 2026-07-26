@@ -1815,6 +1815,12 @@ export default function App() {
               onBack={() => setCurrentScreen('home')}
             />
           )}
+          {currentScreen === 'taobao' && (
+            <TaobaoScreen 
+              key="taobao"
+              onBack={() => setCurrentScreen('home')}
+            />
+          )}
           {currentScreen === 'mengrenjian' && (
             <MengrenjianScreen 
               key="mengrenjian"

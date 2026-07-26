@@ -15,6 +15,19 @@ export function buildWorldbookText(persona: any): string {
     if (Array.isArray(linked)) {
       books = linked.length > 0 ? books.filter((b: any) => linked.includes(b.id)) : [];
     }
+    // 按 readOrder 排序：强制 -> 先 -> 中 -> 后
+    const READ_ORDER_PRIORITY: Record<string, number> = {
+      '强制 - 优先读取': 0,
+      '先 - 稍前读取': 1,
+      '中 - 正常读取': 2,
+      '后 - 靠后读取': 3,
+    };
+    books.sort((a: any, b: any) => {
+      const pa = READ_ORDER_PRIORITY[a.readOrder] ?? 2;
+      const pb = READ_ORDER_PRIORITY[b.readOrder] ?? 2;
+      return pa - pb;
+    });
+
     return books
       .filter((b: any) => b.editMode === 'simple' && b.content?.trim())
       .map((b: any) => `[${b.name}]\n${b.content}`)

@@ -145,7 +145,7 @@ export const WeatherApp = ({ onBack }: { onBack: () => void }) => {
     setLoading(true);
     setError(null);
     try {
-      const url = `/api/weather?city=${encodeURIComponent(city.trim())}`;
+      const url = `https://wttr.in/${encodeURIComponent(city.trim())}?format=j1`;
       console.log('[WeatherApp] Fetching weather for:', city.trim());
       
       const res = await fetch(url, {
