@@ -576,14 +576,18 @@ export default function App() {
     const mandatoryMemSize = parseInt(localStorage.getItem('os_api_mandatory_mem') || '10', 10);
     const contextMemSize = Math.max(mandatoryMemSize, parseInt(localStorage.getItem('os_api_context_mem') || '50', 10));
 
+    // 读取该联系人的聊天设置，获取上下文记忆条数
+    const chatSettingsRec = await AppDB.appSettings.get(`chat_settings_${friendId}`);
+    const contextLimit = chatSettingsRec?.value?.contextLimit ?? contextMemSize;
+
     let recentMessages: any[] = [];
     let extraMessages: any[] = [];
 
     const userLastMsg = [...msgs].reverse().find(m => m.isMe);
     const userText = userLastMsg ? userLastMsg.text : '';
 
-    if (userText && msgs.length > mandatoryMemSize) {
-      const searchEndIdx = msgs.length - mandatoryMemSize;
+    if (userText && msgs.length > contextLimit) {
+      const searchEndIdx = msgs.length - contextLimit;
       const searchStartIdx = Math.max(0, msgs.length - contextMemSize);
       const searchHistory = msgs.slice(searchStartIdx, searchEndIdx);
       
@@ -627,7 +631,8 @@ export default function App() {
     // 通话系统标记（PHONE_CALL_START/HEART/END）不计入上下文条数，只取真正的对话消息
     const phoneCallSystemTexts = ['[PHONE_CALL_START]', '[PHONE_CALL_HEART]'];
     const dialogueMsgs = msgs.filter(m => !(m.msgType === 'system' && phoneCallSystemTexts.includes(m.text)));
-    recentMessages.push(...dialogueMsgs.slice(-mandatoryMemSize));
+    // 使用 contextLimit（优先从微信聊天设置读取）来注入消息
+    recentMessages.push(...dialogueMsgs.slice(-contextLimit));
     
     // 梦人间使用专用提示词，微信使用通用提示词
     const context = isMengrenjian 
@@ -641,19 +646,19 @@ export default function App() {
     let useV2 = false;
     let useCoT = false;
     let cotStyle = '';
-    const settingsRec = await AppDB.appSettings.get(`chat_settings_${friendId}`);
-    if (settingsRec && settingsRec.value) {
-        if (settingsRec.value.useV2Prompt) useV2 = true;
-        if (settingsRec.value.useCoT) useCoT = true;
-        if (settingsRec.value.cotStyle) cotStyle = settingsRec.value.cotStyle;
+    // chatSettingsRec 已在前面读取，直接复用
+    if (chatSettingsRec && chatSettingsRec.value) {
+        if (chatSettingsRec.value.useV2Prompt) useV2 = true;
+        if (chatSettingsRec.value.useCoT) useCoT = true;
+        if (chatSettingsRec.value.cotStyle) cotStyle = chatSettingsRec.value.cotStyle;
     }
     // 梦人间始终使用 V2 JSON 格式输出
     if (isMengrenjian) useV2 = true;
 
-    // 检测是否处于语音通话场景：最近 contextMemSize 条里有 PHONE_CALL_START 或 PHONE_CALL_HEART，
+    // 检测是否处于语音通话场景：最近 contextLimit 条里有 PHONE_CALL_START 或 PHONE_CALL_HEART，
     // 且在那之后没有出现 PHONE_CALL_END（挂断后不应再视为通话中）
     const isPhoneCallScene = (() => {
-      const recent = msgs.slice(-contextMemSize);
+      const recent = msgs.slice(-contextLimit);
       // 找到最后一个 START 或 HEART 的位置
       let lastCallSignalIdx = -1;
       for (let i = recent.length - 1; i >= 0; i--) {
@@ -673,7 +678,7 @@ export default function App() {
 
     // 检测是否刚刚结束通话（最近消息中含有 PHONE_CALL_END，且不在通话中）
     const recentCallEndMsg = !isPhoneCallScene
-      ? msgs.slice(-contextMemSize).reverse().find(
+      ? msgs.slice(-contextLimit).reverse().find(
           m => m.msgType === 'system' && typeof m.text === 'string' && m.text.startsWith('[PHONE_CALL_END:')
         )
       : null;
@@ -685,8 +690,8 @@ export default function App() {
     let finalPrompt: string;
     if (isPhoneCallScene) {
       // 通话场景：使用电话专用 prompt
-      const disableTimeAwareness = settingsRec?.value?.disableTimeAwareness || false;
-      const aiTimezone = settingsRec?.value?.aiTimezone || '跟随用户';
+      const disableTimeAwareness = chatSettingsRec?.value?.disableTimeAwareness || false;
+      const aiTimezone = chatSettingsRec?.value?.aiTimezone || '跟随用户';
       let nowTime: string;
       
       if (disableTimeAwareness) {
