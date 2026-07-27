@@ -43,7 +43,7 @@ const ChatSettingsScreen = ({ onBack, friend, onSetRemark, onSetWallpaper, onCle
   const [useV2Prompt, setUseV2Prompt] = useState(false);
   const [showMindCard, setShowMindCard] = useState(false);
   const [memoryInjectLimit, setMemoryInjectLimit] = useState(30);
-  const [customMemoryLimit, setCustomMemoryLimit] = useState('30');
+  const [customMemoryLimit, setCustomMemoryLimit] = useState('');
   const [totalMessages, setTotalMessages] = useState(0);
   const [totalTokens, setTotalTokens] = useState(0);
   const [summarizedCount, setSummarizedCount] = useState(0);
@@ -266,9 +266,15 @@ IF 不会 → 通过。
 const updateSetting = async (key: string, value: any) => {
     if (friend?.id) {
       const fullKey = `chat_settings_${friend.id}`;
-      let record = await AppDB.appSettings.get(fullKey) || { key: fullKey, value: {} };
-      record.value[key] = value;
-      await AppDB.appSettings.put(record);
+      await AppDB.transaction('rw', AppDB.appSettings, async () => {
+        const existing = await AppDB.appSettings.get(fullKey);
+        const record = existing || { key: fullKey, value: {} };
+        if (!record.value || typeof record.value !== 'object') {
+          record.value = {};
+        }
+        record.value[key] = value;
+        await AppDB.appSettings.put(record);
+      });
     }
   };
 

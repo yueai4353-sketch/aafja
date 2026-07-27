@@ -387,12 +387,12 @@ export const TaobaoApp: React.FC<TaobaoAppProps> = ({ onBack }) => {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96, y: 15 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="absolute inset-0 bg-[#F5F5F5] z-[100] flex flex-col pt-[env(safe-area-inset-top,0px)]"
+className="absolute inset-0 bg-[#F5F5F5] z-[100] flex flex-col"
     >
       {currentView === 'home' && (
         <>
           {/* Search Header */}
-          <div className="bg-white pt-[calc(env(safe-area-inset-top,0px)+8px)] pb-2 px-3 z-10 sticky top-0 border-b border-gray-100/50">
+          <div className="bg-white pt-[env(safe-area-inset-top,0px)] pb-2 px-3 z-10 sticky top-0 border-b border-gray-100/50">
             <div className="flex gap-2 items-center h-10">
               <button onClick={onBack} className="p-2 -ml-2 text-gray-700 active:bg-gray-100 rounded-full transition-colors">
                 <ChevronLeft size={24} />
@@ -466,7 +466,7 @@ export const TaobaoApp: React.FC<TaobaoAppProps> = ({ onBack }) => {
       {currentView === 'cart' && (
         <>
           {/* Cart View */}
-          <div className="bg-white pt-[calc(env(safe-area-inset-top,0px)+8px)] pb-2 px-3 z-10 sticky top-0 border-b border-gray-100/50">
+          <div className="bg-white pt-[env(safe-area-inset-top,0px)] pb-2 px-3 z-10 sticky top-0 border-b border-gray-100/50">
             <div className="flex gap-2 items-center h-10">
               <button onClick={onBack} className="p-2 -ml-2 text-gray-700 active:bg-gray-100 rounded-full transition-colors">
                 <ChevronLeft size={24} />
@@ -654,7 +654,7 @@ export const TaobaoApp: React.FC<TaobaoAppProps> = ({ onBack }) => {
       {currentView === 'orders' && (
         <div className="flex-1 bg-[#F5F5F5] overflow-y-auto w-full z-10 flex flex-col">
           {/* Header */}
-          <div className="bg-white pt-[calc(env(safe-area-inset-top,0px)+8px)] pb-0 px-3 z-10 sticky top-0 border-b border-gray-100">
+          <div className="bg-white pt-[env(safe-area-inset-top,0px)] pb-0 px-3 z-10 sticky top-0 border-b border-gray-100">
             <div className="flex gap-2 items-center h-10 mb-2">
               <button onClick={() => setCurrentView('home')} className="p-2 -ml-2 text-gray-700 active:bg-gray-100 rounded-full transition-colors">
                 <ChevronLeft size={24} />
