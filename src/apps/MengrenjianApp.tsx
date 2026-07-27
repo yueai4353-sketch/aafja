@@ -49,16 +49,30 @@ export const MengrenjianApp = ({
     worldview: '',
     userIdentity: ''
   });
-  const [settings, setSettings] = useState({
-    showMindCard: true,
-    onlineMode: true,
-    offlineMode: false,
-    aiMemoryEnabled: true,
-    aiMemoryContextCount: 200,
-    aiMemoryAutoSummarize: false,
-    aiMemorySummarizeTriggerCount: 50,
-    aiMemoryInjectCount: 30
+  const [settings, setSettings] = useState(() => {
+    const defaults = {
+      showMindCard: true,
+      onlineMode: true,
+      offlineMode: false,
+      aiMemoryEnabled: true,
+      aiMemoryContextCount: 200,
+      aiMemoryAutoSummarize: false,
+      aiMemorySummarizeTriggerCount: 50,
+      aiMemoryInjectCount: 30
+    };
+    try {
+      const saved = localStorage.getItem('dream_chat_settings');
+      if (saved) return { ...defaults, ...JSON.parse(saved) };
+    } catch {}
+    return defaults;
   });
+  // 持久化 settings 到 localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('dream_chat_settings', JSON.stringify(settings));
+    } catch {}
+  }, [settings]);
+
   const [showPluginPanel, setShowPluginPanel] = useState(false);
   const [showFontPanel, setShowFontPanel] = useState(false);
   const [fontSettings, setFontSettings] = useState({

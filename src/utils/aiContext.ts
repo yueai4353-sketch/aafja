@@ -841,7 +841,6 @@ ${offlineMindCard}
 
 /**
  * 构建线下模式系统提示词 V1（独立线下专用，非融合模式）
- * 当用户处于线下模式且 V2 提示词引擎关闭时使用
  */
 export function buildDedicatedOfflineSystemPrompt(data: any, currentPersona: any = null) {
     data = data || {};
@@ -1063,7 +1062,6 @@ ${letterContext || ''}
 
 /**
  * 构建线下模式系统提示词 V2（真实感增强版，独立线下专用）
- * 当用户处于线下模式且 V2 提示词引擎开启时使用
  */
 export function buildDedicatedOfflineSystemPromptV2(data: any, currentPersona: any = null) {
     data = data || {};
